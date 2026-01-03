@@ -167,16 +167,17 @@ func TestFilteredLoggerSink_LevelAndTypeFiltering_Golden(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			var buf bytes.Buffer
 
 			cfg := &FilteredLoggerConfig{
 				Level:      tt.cfgLevel,
 				RelayTypes: tt.allowed,
+				Writer:     &buf,
 			}
 			s := NewFilteredLogger(cfg)
 
-			out := CaptureStdout(t, func() {
-				tt.call(s, tt.event)
-			})
+			tt.call(s, tt.event)
+			out := buf.String()
 
 			if out != tt.wantOutput {
 				t.Fatalf("output mismatch\nwant: %q\ngot:  %q", tt.wantOutput, out)
@@ -233,16 +234,17 @@ func TestFilteredLoggerSink_Meta_Golden(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			var buf bytes.Buffer
 
 			cfg := &FilteredLoggerConfig{
 				Level:      dto.Debug,
 				RelayTypes: []dto.EventRef{"cmd.log"},
+				Writer:     &buf,
 			}
 			s := NewFilteredLogger(cfg)
 
-			out := CaptureStdout(t, func() {
-				s.Meta(tt.event)
-			})
+			s.Meta(tt.event)
+			out := buf.String()
 
 			if tt.wantEmpty {
 				if out != "" {

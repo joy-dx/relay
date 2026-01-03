@@ -148,13 +148,13 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 			event: slogEvent{
 				msg: "warn-msg",
 				attrs: []slog.Attr{
-					slog.String("w", "1"),
+					slog.String("writer", "1"),
 				},
 			},
 			wantAny: []string{
 				"level=WARN",
 				`msg=warn-msg`,
-				`w=1`,
+				`writer=1`,
 			},
 		},
 		{

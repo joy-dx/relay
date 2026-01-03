@@ -2,6 +2,8 @@ package sinks
 
 import (
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/joy-dx/relay/dto"
 	"github.com/joy-dx/relay/events"
@@ -13,6 +15,7 @@ const FilteredLoggerRef = "filtered"
 type FilteredLoggerSink struct {
 	level       int
 	relayEvents map[dto.EventRef]struct{}
+	writer      io.Writer
 	cfg         *FilteredLoggerConfig
 }
 
@@ -21,10 +24,15 @@ func NewFilteredLogger(cfg *FilteredLoggerConfig) *FilteredLoggerSink {
 	for _, t := range cfg.RelayTypes {
 		set[t] = struct{}{}
 	}
+	writer := cfg.Writer
+	if writer == nil {
+		writer = os.Stdout
+	}
 	return &FilteredLoggerSink{
 		cfg:         cfg,
 		level:       GetLogLevelIndex(cfg.Level, dto.Levels),
 		relayEvents: set,
+		writer:      writer,
 	}
 }
 
@@ -41,7 +49,7 @@ func (s *FilteredLoggerSink) Debug(e dto.RelayEventInterface) {
 	if !ok {
 		return
 	}
-	fmt.Println(e.Message())
+	fmt.Fprintln(s.writer, e.Message())
 }
 
 func (s *FilteredLoggerSink) Info(e dto.RelayEventInterface) {
@@ -51,7 +59,7 @@ func (s *FilteredLoggerSink) Info(e dto.RelayEventInterface) {
 	if _, ok := s.relayEvents[e.RelayType()]; !ok {
 		return
 	}
-	fmt.Println(e.Message())
+	fmt.Fprintln(s.writer, e.Message())
 }
 func (s *FilteredLoggerSink) Warn(e dto.RelayEventInterface) {
 	if s.level <= 1 {
@@ -60,36 +68,38 @@ func (s *FilteredLoggerSink) Warn(e dto.RelayEventInterface) {
 	if _, ok := s.relayEvents[e.RelayType()]; !ok {
 		return
 	}
-	fmt.Println(e.Message())
+	fmt.Fprintln(s.writer, e.Message())
 }
 func (s *FilteredLoggerSink) Error(e dto.RelayEventInterface) {
-	fmt.Println(e.Message())
+	fmt.Fprintln(s.writer, e.Message())
 }
 
 func (s *FilteredLoggerSink) Fatal(e dto.RelayEventInterface) {
-	fmt.Println(e.Message())
+	fmt.Fprintln(s.writer, e.Message())
 }
 
 func (s *FilteredLoggerSink) Meta(e dto.RelayEventInterface) {
 	metaCfg, castOk := e.(events.RlyMeta)
 	if !castOk {
-		fmt.Println("Could not cast to RlyMeta")
+		fmt.Fprintln(s.writer, "Could not cast to RlyMeta")
 	} else {
 		switch metaCfg.MetaType {
 		case "section":
-			fmt.Println("")
-			fmt.Println("## " + e.Message())
-			fmt.Println("")
+			fmt.Fprintln(s.writer, "")
+			fmt.Fprintln(s.writer, "## "+e.Message())
+			fmt.Fprintln(s.writer, "")
 		case "failure":
 			if _, printErr := output.ErrorColor.Print(" FAILURE "); printErr != nil {
-				fmt.Println("failure print error: " + printErr.Error())
+				fmt.Fprintln(s.writer, "failure print error: "+printErr.Error())
+				return
 			}
-			fmt.Printf(" %s\n", e.Message())
+			fmt.Fprintln(s.writer, " "+e.Message())
 		case "success":
 			if _, printErr := output.SuccessColor.Print(" SUCCESS "); printErr != nil {
-				fmt.Println("failure print error: " + printErr.Error())
+				fmt.Fprintln(s.writer, "failure print error: "+printErr.Error())
+				return
 			}
-			fmt.Printf(" %s\n", e.Message())
+			fmt.Fprintln(s.writer, " "+e.Message())
 		}
 	}
 }

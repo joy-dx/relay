@@ -1,6 +1,7 @@
 package sinks
 
 import (
+	"bytes"
 	"log/slog"
 	"testing"
 
@@ -19,10 +20,6 @@ func (e msgEvent) ToSlog() []slog.Attr { return nil }
 
 func TestSimpleLoggerSink_LevelGating_Golden(t *testing.T) {
 	t.Parallel()
-
-	// The sink's gating uses GetLogLevelIndex(cfg.Level, dto.Levels)
-	// and compares "if s.level <= N return". This test suite asserts the
-	// observable behavior: whether output is emitted for each method.
 
 	tests := []struct {
 		name       string
@@ -50,7 +47,7 @@ func TestSimpleLoggerSink_LevelGating_Golden(t *testing.T) {
 			name:     "warn printed at info",
 			cfgLevel: dto.Info,
 			call: func(s *SimpleLoggerSink) {
-				s.Warn(msgEvent{msg: "w"})
+				s.Warn(msgEvent{msg: "writer"})
 			},
 			wantOutput: true,
 		},
@@ -76,15 +73,15 @@ func TestSimpleLoggerSink_LevelGating_Golden(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			var buf bytes.Buffer
 
 			cfg := DefaultSimpleLoggerConfig()
-			cfg.WithLevel(tt.cfgLevel).WithKeyPadding(0)
+			cfg.WithLevel(tt.cfgLevel).WithKeyPadding(0).WithWriter(&buf)
 
 			sink := NewSimpleLogger(&cfg)
 
-			out := CaptureStdout(t, func() {
-				tt.call(sink)
-			})
+			tt.call(sink)
+			out := buf.String()
 
 			if tt.wantOutput && out == "" {
 				t.Fatalf("expected output, got empty")

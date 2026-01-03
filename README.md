@@ -424,7 +424,6 @@ r.RegisterSink(counter)
 - **Prefer typed events** for important logging paths (deploys, builds, migrations, API calls). This gives you structured fields naturally.
 - Use `RelayType()` consistently (e.g. `"db.query"`, `"auth.login"`, `"cmd.log"`) so filtered sinks can route correctly.
 - Keep sinks “dumb”: they should format/output, not implement business logic.
-- For testability and performance, consider updating sinks to accept an `io.Writer` rather than writing directly to `os.Stdout`.
 
 ---
 

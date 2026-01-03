@@ -63,8 +63,8 @@ func TestFileLoggerSink_LevelGatingAndFormatting_Golden(t *testing.T) {
 			call: func(s *FileLoggerSink, e dto.RelayEventInterface) {
 				s.Warn(e)
 			},
-			event:      basicEvent{ref: "cmd.log", msg: "w"},
-			wantOutput: "cmd.log: w\n",
+			event:      basicEvent{ref: "cmd.log", msg: "writer"},
+			wantOutput: "cmd.log: writer\n",
 		},
 		{
 			name:     "warn suppressed at error",
@@ -72,7 +72,7 @@ func TestFileLoggerSink_LevelGatingAndFormatting_Golden(t *testing.T) {
 			call: func(s *FileLoggerSink, e dto.RelayEventInterface) {
 				s.Warn(e)
 			},
-			event:      basicEvent{ref: "cmd.log", msg: "w"},
+			event:      basicEvent{ref: "cmd.log", msg: "writer"},
 			wantOutput: "",
 		},
 		{
@@ -99,15 +99,15 @@ func TestFileLoggerSink_LevelGatingAndFormatting_Golden(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
+			var buf bytes.Buffer
 			cfg := &FileLoggerConfig{
-				Level: tt.cfgLevel,
+				Level:  tt.cfgLevel,
+				Writer: &buf,
 			}
 			s := NewFileLogger(cfg)
 
-			out := CaptureStdout(t, func() {
-				tt.call(s, tt.event)
-			})
+			tt.call(s, tt.event)
+			out := buf.String()
 
 			if out != tt.wantOutput {
 				t.Fatalf("output mismatch\nwant: %q\ngot:  %q", tt.wantOutput, out)
@@ -151,13 +151,16 @@ func TestFileLoggerSink_Meta_Golden(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			var buf bytes.Buffer
 
-			cfg := &FileLoggerConfig{Level: dto.Debug}
+			cfg := &FileLoggerConfig{
+				Level:  dto.Debug,
+				Writer: &buf,
+			}
 			s := NewFileLogger(cfg)
 
-			out := CaptureStdout(t, func() {
-				s.Meta(tt.event)
-			})
+			s.Meta(tt.event)
+			out := buf.String()
 
 			if tt.wantEmpty {
 				if out != "" {
