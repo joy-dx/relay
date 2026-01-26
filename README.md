@@ -252,30 +252,6 @@ r.Info(events.RlyLog{Msg: "this depends on RelayType used by the event"})
 // Will be suppressed at Info/Warn/Debug if type not in RelayTypes
 ```
 
-> Tip: Filtered logging is most useful when your app emits many different event types and you want only a small subset visible in the terminal.
-
-### 4) FileLoggerSink (`ref: "simple"`)
-
-Despite the name, the current implementation prints to stdout (it behaves like a minimal unpadded logger).
-
-**Behavior:**
-- `Debug/Info/Warn`: prints `<relayType>: <message>` with level gating
-- `Error/Fatal`: prints message
-- `Meta`: formats similarly to SimpleLoggerSink / FilteredLoggerSink
-
-**Example:**
-
-```go
-cfg := &sinks.FileLoggerConfig{
-	Level: dto.Info,
-}
-r.RegisterSink(sinks.NewFileLogger(cfg))
-
-r.Info(events.RlyLog{Msg: "hello"})
-```
-
-> If you want a true file sink, consider refactoring `FileLoggerSink` to accept an `io.Writer` or a file path and write to it, then test it using a buffer.
-
 ---
 
 ## Logging levels
@@ -416,14 +392,6 @@ Register it:
 counter := mysinks.NewCountingSink()
 r.RegisterSink(counter)
 ```
-
----
-
-## Recommendations / best practices
-
-- **Prefer typed events** for important logging paths (deploys, builds, migrations, API calls). This gives you structured fields naturally.
-- Use `RelayType()` consistently (e.g. `"db.query"`, `"auth.login"`, `"cmd.log"`) so filtered sinks can route correctly.
-- Keep sinks “dumb”: they should format/output, not implement business logic.
 
 ---
 
