@@ -252,6 +252,43 @@ r.Info(events.RlyLog{Msg: "this depends on RelayType used by the event"})
 // Will be suppressed at Info/Warn/Debug if type not in RelayTypes
 ```
 
+### 3) FileLoggerSink (`ref: "file"`)
+
+**Best for**: persistent log output to disk (CLI tools, background jobs, desktop apps).
+
+**Behavior:**
+- `Debug/Info/Warn` print: <event-type>: <message>
+- `Error` prints: ERROR: <message>
+- `Fatal` prints: FATAL: <message>
+- `Meta` prints: META: <message>
+
+Automatically creates parent directories if they do not exist
+
+Appends to the log file (does not overwrite)
+
+Thread-safe writes
+
+**Example:**
+
+```go
+appData := os.Getenv("APPDATA")
+logPath := filepath.Join(appData, "Joydx", "joydx.log")
+
+fileCfg := sinks.DefaultFileLoggerConfig().
+WithFilePath(logPath).
+WithLevel(dto.Info).
+WithKeyPadding(16)
+
+fileSink, err := sinks.NewFileLogger(&fileCfg)
+if err != nil {
+	log.Fatal(err)
+}
+
+r.RegisterSink(fileSink)
+
+r.Info(events.RlyLog{Msg: "written to disk"})
+```
+
 ---
 
 ## Logging levels

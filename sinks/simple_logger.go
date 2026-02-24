@@ -13,7 +13,6 @@ import (
 const SimpleLoggerRef = "simple"
 
 type SimpleLoggerSink struct {
-	level   int
 	padding int
 	writer  io.Writer
 	cfg     *SimpleLoggerConfig
@@ -26,7 +25,6 @@ func NewSimpleLogger(cfg *SimpleLoggerConfig) *SimpleLoggerSink {
 	}
 	return &SimpleLoggerSink{
 		cfg:     cfg,
-		level:   GetLogLevelIndex(cfg.Level, dto.Levels),
 		padding: cfg.KeyPadding,
 		writer:  writer,
 	}
@@ -37,21 +35,21 @@ func (s *SimpleLoggerSink) Ref() string {
 }
 
 func (s *SimpleLoggerSink) Debug(e dto.RelayEventInterface) {
-	if s.level <= 3 {
+	if !levelEnabled(s.cfg.Level, dto.Debug) {
 		return
 	}
 	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(e.RelayType()), s.padding), e.Message())
 }
 
 func (s *SimpleLoggerSink) Info(e dto.RelayEventInterface) {
-	if s.level <= 2 {
+	if !levelEnabled(s.cfg.Level, dto.Info) {
 		return
 	}
 	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(e.RelayType()), s.padding), e.Message())
 }
 
 func (s *SimpleLoggerSink) Warn(e dto.RelayEventInterface) {
-	if s.level <= 1 {
+	if !levelEnabled(s.cfg.Level, dto.Warn) {
 		return
 	}
 	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(e.RelayType()), s.padding), e.Message())

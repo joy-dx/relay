@@ -13,7 +13,6 @@ import (
 const FilteredLoggerRef = "filtered"
 
 type FilteredLoggerSink struct {
-	level       int
 	relayEvents map[dto.EventRef]struct{}
 	writer      io.Writer
 	cfg         *FilteredLoggerConfig
@@ -30,7 +29,6 @@ func NewFilteredLogger(cfg *FilteredLoggerConfig) *FilteredLoggerSink {
 	}
 	return &FilteredLoggerSink{
 		cfg:         cfg,
-		level:       GetLogLevelIndex(cfg.Level, dto.Levels),
 		relayEvents: set,
 		writer:      writer,
 	}
@@ -42,7 +40,7 @@ func (s *FilteredLoggerSink) Ref() string {
 }
 
 func (s *FilteredLoggerSink) Debug(e dto.RelayEventInterface) {
-	if s.level <= 3 {
+	if !levelEnabled(s.cfg.Level, dto.Debug) {
 		return
 	}
 	_, ok := s.relayEvents[e.RelayType()]
@@ -53,7 +51,7 @@ func (s *FilteredLoggerSink) Debug(e dto.RelayEventInterface) {
 }
 
 func (s *FilteredLoggerSink) Info(e dto.RelayEventInterface) {
-	if s.level <= 2 {
+	if !levelEnabled(s.cfg.Level, dto.Info) {
 		return
 	}
 	if _, ok := s.relayEvents[e.RelayType()]; !ok {
@@ -62,7 +60,7 @@ func (s *FilteredLoggerSink) Info(e dto.RelayEventInterface) {
 	fmt.Fprintln(s.writer, e.Message())
 }
 func (s *FilteredLoggerSink) Warn(e dto.RelayEventInterface) {
-	if s.level <= 1 {
+	if !levelEnabled(s.cfg.Level, dto.Warn) {
 		return
 	}
 	if _, ok := s.relayEvents[e.RelayType()]; !ok {
