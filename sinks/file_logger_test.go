@@ -1,97 +1,80 @@
-// File: sinks/file_logger_sink_golden_test.go
 package sinks
 
 import (
-	"bytes"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/joy-dx/relay/dto"
-	"github.com/joy-dx/relay/events"
 )
 
-// --- Tests -------------------------------------------------------------------
+type fileMsgEvent struct {
+	msg string
+}
 
-func TestFileLoggerSink_LevelGatingAndFormatting_Golden(t *testing.T) {
+func (e fileMsgEvent) RelayChannel() dto.EventChannel { return "relay" }
+func (e fileMsgEvent) RelayType() dto.EventRef        { return "relay.log" }
+func (e fileMsgEvent) Message() string                { return e.msg }
+func (e fileMsgEvent) ToSlog() []slog.Attr            { return nil }
+
+func TestFileLoggerSink_Golden(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name       string
-		cfgLevel   dto.RelayLevel
-		call       func(s *FileLoggerSink, e dto.RelayEventInterface)
-		event      dto.RelayEventInterface
+		level      dto.RelayLevel
+		call       func(s *FileLoggerSink)
 		wantOutput string
 	}{
 		{
-			name:     "debug prints at debug",
-			cfgLevel: dto.Debug,
-			call: func(s *FileLoggerSink, e dto.RelayEventInterface) {
-				s.Debug(e)
+			name:  "debug suppressed at info",
+			level: dto.Info,
+			call: func(s *FileLoggerSink) {
+				s.Debug(fileMsgEvent{msg: "debug-msg"})
 			},
-			event:      basicEvent{ref: "cmd.log", msg: "d"},
-			wantOutput: "cmd.log: d\n",
-		},
-		{
-			name:     "debug suppressed at info",
-			cfgLevel: dto.Info,
-			call: func(s *FileLoggerSink, e dto.RelayEventInterface) {
-				s.Debug(e)
-			},
-			event:      basicEvent{ref: "cmd.log", msg: "d"},
 			wantOutput: "",
 		},
 		{
-			name:     "info prints at info",
-			cfgLevel: dto.Info,
-			call: func(s *FileLoggerSink, e dto.RelayEventInterface) {
-				s.Info(e)
+			name:  "info printed at info",
+			level: dto.Info,
+			call: func(s *FileLoggerSink) {
+				s.Info(fileMsgEvent{msg: "info-msg"})
 			},
-			event:      basicEvent{ref: "cmd.log", msg: "i"},
-			wantOutput: "cmd.log: i\n",
+			wantOutput: "relay.log: info-msg\n",
 		},
 		{
-			name:     "info suppressed at warn",
-			cfgLevel: dto.Warn,
-			call: func(s *FileLoggerSink, e dto.RelayEventInterface) {
-				s.Info(e)
+			name:  "warn printed at info",
+			level: dto.Info,
+			call: func(s *FileLoggerSink) {
+				s.Warn(fileMsgEvent{msg: "warn-msg"})
 			},
-			event:      basicEvent{ref: "cmd.log", msg: "i"},
-			wantOutput: "",
+			wantOutput: "relay.log: warn-msg\n",
 		},
 		{
-			name:     "warn prints at warn",
-			cfgLevel: dto.Warn,
-			call: func(s *FileLoggerSink, e dto.RelayEventInterface) {
-				s.Warn(e)
+			name:  "error printed when enabled",
+			level: dto.Error,
+			call: func(s *FileLoggerSink) {
+				s.Error(fileMsgEvent{msg: "error-msg"})
 			},
-			event:      basicEvent{ref: "cmd.log", msg: "writer"},
-			wantOutput: "cmd.log: writer\n",
+			wantOutput: "ERROR: error-msg\n",
 		},
 		{
-			name:     "warn suppressed at error",
-			cfgLevel: dto.Error,
-			call: func(s *FileLoggerSink, e dto.RelayEventInterface) {
-				s.Warn(e)
+			name:  "fatal printed when enabled",
+			level: dto.Fatal,
+			call: func(s *FileLoggerSink) {
+				s.Fatal(fileMsgEvent{msg: "fatal-msg"})
 			},
-			event:      basicEvent{ref: "cmd.log", msg: "writer"},
-			wantOutput: "",
+			wantOutput: "FATAL: fatal-msg\n",
 		},
 		{
-			name:     "error always prints message only",
-			cfgLevel: dto.Fatal,
-			call: func(s *FileLoggerSink, e dto.RelayEventInterface) {
-				s.Error(e)
+			name:  "meta always prints",
+			level: dto.Fatal,
+			call: func(s *FileLoggerSink) {
+				s.Meta(fileMsgEvent{msg: "meta-msg"})
 			},
-			event:      basicEvent{ref: "cmd.log", msg: "err"},
-			wantOutput: "err\n",
-		},
-		{
-			name:     "fatal always prints message only",
-			cfgLevel: dto.Fatal,
-			call: func(s *FileLoggerSink, e dto.RelayEventInterface) {
-				s.Fatal(e)
-			},
-			event:      basicEvent{ref: "cmd.log", msg: "fatal"},
-			wantOutput: "fatal\n",
+			wantOutput: "META: meta-msg\n",
 		},
 	}
 
@@ -99,80 +82,100 @@ func TestFileLoggerSink_LevelGatingAndFormatting_Golden(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var buf bytes.Buffer
-			cfg := &FileLoggerConfig{
-				Level:  tt.cfgLevel,
-				Writer: &buf,
+
+			tmpDir := t.TempDir()
+			logPath := filepath.Join(tmpDir, "test.log")
+
+			cfg := DefaultFileLoggerConfig()
+			cfg.WithFilePath(logPath).
+				WithLevel(tt.level).
+				WithKeyPadding(0)
+
+			sink, err := NewFileLogger(&cfg)
+			if err != nil {
+				t.Fatalf("failed to create file logger: %v", err)
 			}
-			s := NewFileLogger(cfg)
+			defer sink.Close()
 
-			tt.call(s, tt.event)
-			out := buf.String()
+			tt.call(sink)
 
-			if out != tt.wantOutput {
-				t.Fatalf("output mismatch\nwant: %q\ngot:  %q", tt.wantOutput, out)
+			data, err := os.ReadFile(logPath)
+			if err != nil {
+				t.Fatalf("failed reading log file: %v", err)
+			}
+
+			got := string(data)
+
+			if got != tt.wantOutput {
+				t.Fatalf(
+					"\n--- got ---\n%q\n--- want ---\n%q\n",
+					got,
+					tt.wantOutput,
+				)
 			}
 		})
 	}
 }
 
-func TestFileLoggerSink_Meta_Golden(t *testing.T) {
+func TestFileLoggerSink_CreatesDirectories(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		event     dto.RelayEventInterface
-		wantSub   string
-		wantEmpty bool
-	}{
-		{
-			name:    "meta non-RlyMeta prints cast error",
-			event:   basicEvent{ref: "cmd.log", msg: "nope"},
-			wantSub: "Could not cast to RlyMeta",
-		},
-		{
-			name:    "meta section prints header",
-			event:   events.RlyMeta{MetaType: "section", Text: "Section Name"},
-			wantSub: "## Section Name",
-		},
-		{
-			name:    "meta failure prints message (at least)",
-			event:   events.RlyMeta{MetaType: "failure", Text: "Bad"},
-			wantSub: "Bad",
-		},
-		{
-			name:    "meta success prints message (at least)",
-			event:   events.RlyMeta{MetaType: "success", Text: "Good"},
-			wantSub: "Good",
-		},
+	tmpDir := t.TempDir()
+	nestedPath := filepath.Join(tmpDir, "a", "b", "c", "test.log")
+
+	cfg := DefaultFileLoggerConfig()
+	cfg.WithFilePath(nestedPath)
+
+	sink, err := NewFileLogger(&cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer sink.Close()
+
+	if _, err := os.Stat(nestedPath); err != nil {
+		t.Fatalf("expected log file to exist")
+	}
+}
+
+func TestFileLoggerSink_RequiresPath(t *testing.T) {
+	t.Parallel()
+
+	cfg := DefaultFileLoggerConfig()
+
+	_, err := NewFileLogger(&cfg)
+	if err == nil {
+		t.Fatal("expected error when path is empty")
+	}
+}
+
+func TestFileLoggerSink_Appends(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "append.log")
+
+	cfg := DefaultFileLoggerConfig()
+	cfg.WithFilePath(logPath).
+		WithLevel(dto.Debug).
+		WithKeyPadding(0)
+
+	sink, err := NewFileLogger(&cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			var buf bytes.Buffer
+	sink.Info(fileMsgEvent{msg: "first"})
+	sink.Info(fileMsgEvent{msg: "second"})
+	sink.Close()
 
-			cfg := &FileLoggerConfig{
-				Level:  dto.Debug,
-				Writer: &buf,
-			}
-			s := NewFileLogger(cfg)
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed reading log file: %v", err)
+	}
 
-			s.Meta(tt.event)
-			out := buf.String()
+	got := string(data)
 
-			if tt.wantEmpty {
-				if out != "" {
-					t.Fatalf("expected empty output, got: %q", out)
-				}
-				return
-			}
-
-			if tt.wantSub != "" && !bytes.Contains([]byte(out), []byte(tt.wantSub)) {
-				t.Fatalf("expected output to contain %q\noutput:\n%s",
-					tt.wantSub, out)
-			}
-		})
+	if !strings.Contains(got, "first") || !strings.Contains(got, "second") {
+		t.Fatalf("expected appended lines, got: %q", got)
 	}
 }

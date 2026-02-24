@@ -1,8 +1,6 @@
 package sinks
 
 import (
-	"io"
-
 	"github.com/joy-dx/relay/dto"
 )
 
@@ -10,7 +8,6 @@ type FileLoggerConfig struct {
 	Level      dto.RelayLevel `json:"level" yaml:"level" mapstructure:"level"`
 	KeyPadding int            `json:"key_padding" yaml:"key_padding" mapstructure:"key_padding"`
 	FilePath   string         `json:"file_path" yaml:"file_path" mapstructure:"file_path"`
-	Writer     io.Writer      `json:"-" yaml:"-" mapstructure:"-"`
 }
 
 func DefaultFileLoggerConfig() FileLoggerConfig {
@@ -32,10 +29,5 @@ func (c *FileLoggerConfig) WithKeyPadding(keyPadding int) *FileLoggerConfig {
 
 func (c *FileLoggerConfig) WithFilePath(filePath string) *FileLoggerConfig {
 	c.FilePath = filePath
-	return c
-}
-
-func (c *FileLoggerConfig) WithWriter(w io.Writer) *FileLoggerConfig {
-	c.Writer = w
 	return c
 }

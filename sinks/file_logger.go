@@ -2,88 +2,101 @@ package sinks
 
 import (
 	"fmt"
-	"io"
 	"os"
+	"path/filepath"
+	"sync"
 
 	"github.com/joy-dx/relay/dto"
-	"github.com/joy-dx/relay/events"
-	"github.com/joy-dx/relay/output"
 )
 
 const FileLoggerRef = "simple"
 
 type FileLoggerSink struct {
-	level  int
-	writer io.Writer
-	cfg    *FileLoggerConfig
+	padding int
+	file    *os.File
+	mu      sync.Mutex
+	cfg     *FileLoggerConfig
 }
 
-func NewFileLogger(cfg *FileLoggerConfig) *FileLoggerSink {
-	writer := cfg.Writer
-	if writer == nil {
-		writer = os.Stdout
+func NewFileLogger(cfg *FileLoggerConfig) (*FileLoggerSink, error) {
+	if cfg.FilePath == "" {
+		return nil, fmt.Errorf("file logger requires a path")
 	}
+
+	// ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(cfg.FilePath), 0755); err != nil {
+		return nil, err
+	}
+
+	f, err := os.OpenFile(
+		cfg.FilePath,
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0644,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	return &FileLoggerSink{
-		cfg:    cfg,
-		level:  GetLogLevelIndex(cfg.Level, dto.Levels),
-		writer: writer,
-	}
+		cfg:     cfg,
+		padding: cfg.KeyPadding,
+		file:    f,
+	}, nil
 }
 
 func (s *FileLoggerSink) Ref() string {
 	return FileLoggerRef
 }
 
-func (s *FileLoggerSink) Debug(e dto.RelayEventInterface) {
-	if s.level <= 3 {
-		return
-	}
-	fmt.Fprintf(s.writer, "%s: %s\n", e.RelayType(), e.Message())
-
+func (s *FileLoggerSink) write(format string, args ...any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	fmt.Fprintf(s.file, format, args...)
 }
-func (s *FileLoggerSink) Info(e dto.RelayEventInterface) {
-	if s.level <= 2 {
+
+func (s *FileLoggerSink) Debug(e dto.RelayEventInterface) {
+	if !levelEnabled(s.cfg.Level, dto.Debug) {
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", e.RelayType(), e.Message())
+	s.write("%s: %s\n", PadRight(string(e.RelayType()), s.padding), e.Message())
+}
+
+func (s *FileLoggerSink) Info(e dto.RelayEventInterface) {
+	if !levelEnabled(s.cfg.Level, dto.Info) {
+		return
+	}
+
+	s.write("%s: %s\n", PadRight(string(e.RelayType()), s.padding), e.Message())
 }
 
 func (s *FileLoggerSink) Warn(e dto.RelayEventInterface) {
-	if s.level <= 1 {
+	if !levelEnabled(s.cfg.Level, dto.Warn) {
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", e.RelayType(), e.Message())
+
+	s.write("%s: %s\n", PadRight(string(e.RelayType()), s.padding), e.Message())
 }
 
 func (s *FileLoggerSink) Error(e dto.RelayEventInterface) {
-	fmt.Fprintln(s.writer, e.Message())
+	if !levelEnabled(s.cfg.Level, dto.Error) {
+		return
+	}
+	s.write("ERROR: %s\n", e.Message())
 }
 
 func (s *FileLoggerSink) Fatal(e dto.RelayEventInterface) {
-	fmt.Fprintln(s.writer, e.Message())
+	if !levelEnabled(s.cfg.Level, dto.Fatal) {
+		return
+	}
+	s.write("FATAL: %s\n", e.Message())
 }
 
 func (s *FileLoggerSink) Meta(e dto.RelayEventInterface) {
-	metaCfg, castOk := e.(events.RlyMeta)
-	if !castOk {
-		fmt.Fprintln(s.writer, "Could not cast to RlyMeta")
-	} else {
-		switch metaCfg.MetaType {
-		case "section":
-			fmt.Fprintln(s.writer, "")
-			fmt.Fprintln(s.writer, "## "+e.Message())
-			fmt.Fprintln(s.writer, "")
-		case "failure":
-			if _, printErr := output.ErrorColor.Print(" FAILURE "); printErr != nil {
-				fmt.Fprintln(s.writer, "failure print error: "+printErr.Error())
-			}
-			fmt.Fprintln(s.writer, " "+e.Message())
+	s.write("META: %s\n", e.Message())
+}
 
-		case "success":
-			if _, printErr := output.SuccessColor.Print(" SUCCESS "); printErr != nil {
-				fmt.Fprintln(s.writer, "failure print error: "+printErr.Error())
-			}
-			fmt.Fprintln(s.writer, " "+e.Message())
-		}
-	}
+func (s *FileLoggerSink) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.file.Close()
 }
