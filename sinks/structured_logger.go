@@ -66,6 +66,6 @@ func (s *StructuredLogger) Meta(e dto.RelayEventInterface) {
 
 }
 
-func (s *StructuredLogger) Close() {
-	// No op for close
+func (s *StructuredLogger) Close() error {
+	return nil
 }
