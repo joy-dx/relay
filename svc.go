@@ -20,6 +20,16 @@ func (r *RelaySvc) RegisterSink(sink dto.RelaySinkInterface) {
 	r.sinks = append(r.sinks, sink)
 }
 
+func (r *RelaySvc) Close() error {
+	var closeErr error
+	for _, sink := range r.sinks {
+		if err := sink.Close(); err != nil {
+			closeErr = err
+		}
+	}
+	return closeErr
+}
+
 func (r *RelaySvc) emit(level dto.RelayLevel, data dto.RelayEventInterface) {
 
 	// dispatch to registered sinks

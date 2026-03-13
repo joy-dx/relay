@@ -101,3 +101,7 @@ func (s *FilteredLoggerSink) Meta(e dto.RelayEventInterface) {
 		}
 	}
 }
+
+func (s *FilteredLoggerSink) Close() error {
+	return nil
+}

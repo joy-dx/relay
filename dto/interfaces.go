@@ -12,6 +12,7 @@ type RelayEventInterface interface {
 }
 
 type RelayInterface interface {
+	Close() error
 	Debug(data RelayEventInterface)
 	Info(data RelayEventInterface)
 	Warn(data RelayEventInterface)
@@ -22,6 +23,7 @@ type RelayInterface interface {
 
 type RelaySinkInterface interface {
 	Ref() string
+	Close() error
 	Debug(data RelayEventInterface)
 	Info(data RelayEventInterface)
 	Warn(data RelayEventInterface)

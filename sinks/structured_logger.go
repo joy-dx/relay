@@ -65,3 +65,7 @@ func (s *StructuredLogger) Fatal(e dto.RelayEventInterface) {
 func (s *StructuredLogger) Meta(e dto.RelayEventInterface) {
 
 }
+
+func (s *StructuredLogger) Close() {
+	// No op for close
+}

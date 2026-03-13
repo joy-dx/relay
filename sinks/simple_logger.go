@@ -89,3 +89,7 @@ func (s *SimpleLoggerSink) Meta(e dto.RelayEventInterface) {
 		fmt.Fprintln(s.writer, " "+e.Message())
 	}
 }
+
+func (s *SimpleLoggerSink) Close() error {
+	return nil
+}

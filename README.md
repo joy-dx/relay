@@ -50,6 +50,7 @@ A sink is any implementation of:
 ```go
 type RelaySinkInterface interface {
 	Ref() string
+	Close() error
 	Debug(data RelayEventInterface)
 	Info(data RelayEventInterface)
 	Warn(data RelayEventInterface)
@@ -60,6 +61,16 @@ type RelaySinkInterface interface {
 ```
 
 Sinks decide how and where the event is output (stdout, structured slog, filtered stdout, etc).
+
+### Shutdown and cleanup
+
+Relay supports graceful shutdown via `Close()`. Both the Relay service and all sinks implement a Close() method that is used to release resources when the application exits. This allows sinks to safely flush buffers, close files, or finish background work.
+
+Typical things that may happen during Close():
+
+* file sinks flush and close file handles
+* network sinks flush pending messages
+* buffered loggers ensure all logs are written
 
 ---
 
@@ -86,6 +97,8 @@ import (
 func main() {
 	cfg := config.DefaultRelaySvcConfig()
 	r := relay.ProvideRelaySvc(&cfg)
+	
+	defer r.Close()
 
 	// Register sinks here (next section)
 	_ = r
@@ -397,6 +410,10 @@ func NewCountingSink() *CountingSink {
 }
 
 func (s *CountingSink) Ref() string { return "counting" }
+
+func (s *CountingSink) Close() error { 
+	return nil
+}
 
 func (s *CountingSink) add(e dto.RelayEventInterface) {
 	s.mu.Lock()
