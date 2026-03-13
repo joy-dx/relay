@@ -9,7 +9,7 @@ import (
 	"github.com/joy-dx/relay/dto"
 )
 
-const FileLoggerRef = "simple"
+const FileLoggerRef = "file"
 
 type FileLoggerSink struct {
 	padding int
