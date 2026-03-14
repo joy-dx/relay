@@ -28,11 +28,17 @@ func NewFileLogger(cfg *FileLoggerConfig) (*FileLoggerSink, error) {
 		return nil, err
 	}
 
-	f, err := os.OpenFile(
-		cfg.FilePath,
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0644,
-	)
+	var logFile *os.File
+	var err error
+	if cfg.AppendLog {
+		logFile, err = os.OpenFile(
+			cfg.FilePath,
+			os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+			0644,
+		)
+	} else {
+		logFile, err = os.Create(cfg.FilePath)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +46,7 @@ func NewFileLogger(cfg *FileLoggerConfig) (*FileLoggerSink, error) {
 	return &FileLoggerSink{
 		cfg:     cfg,
 		padding: cfg.KeyPadding,
-		file:    f,
+		file:    logFile,
 	}, nil
 }
 

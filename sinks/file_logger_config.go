@@ -5,6 +5,7 @@ import (
 )
 
 type FileLoggerConfig struct {
+	AppendLog  bool           `yaml:"append_log," yaml:"append_log" mapstructure:"append_log"`
 	Level      dto.RelayLevel `json:"level" yaml:"level" mapstructure:"level"`
 	KeyPadding int            `json:"key_padding" yaml:"key_padding" mapstructure:"key_padding"`
 	FilePath   string         `json:"file_path" yaml:"file_path" mapstructure:"file_path"`
@@ -15,6 +16,11 @@ func DefaultFileLoggerConfig() FileLoggerConfig {
 		KeyPadding: 8,
 		Level:      dto.Info,
 	}
+}
+
+func (c *FileLoggerConfig) WithAppendLog(truthy bool) *FileLoggerConfig {
+	c.AppendLog = truthy
+	return c
 }
 
 func (c *FileLoggerConfig) WithLevel(level dto.RelayLevel) *FileLoggerConfig {
