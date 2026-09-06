@@ -49,6 +49,9 @@ func (s *recordingSink) Warn(e dto.RelayEventInterface)  { s.record(dto.Warn, e)
 func (s *recordingSink) Error(e dto.RelayEventInterface) { s.record(dto.Error, e) }
 func (s *recordingSink) Fatal(e dto.RelayEventInterface) { s.record(dto.Fatal, e) }
 func (s *recordingSink) Meta(e dto.RelayEventInterface)  { s.record(dto.Meta, e) }
+func (s *recordingSink) Close() error {
+	return nil
+}
 
 func (s *recordingSink) Calls() []sinkCall {
 	s.mu.Lock()
