@@ -302,6 +302,106 @@ r.RegisterSink(fileSink)
 r.Info(events.RlyLog{Msg: "written to disk"})
 ```
 
+### 4) RecorderSink (`ref: "recorder"`)
+
+**Best for:** capturing relay events in memory for later inspection, replay,
+testing, diagnostics, or building higher-level buffering/forwarding behavior.
+
+**Behavior:**
+- `Debug/Info/Warn` record only if level gating allows it
+- `Error/Fatal/Meta` are always recorded
+- events are stored in fixed-size in-memory segments rather than one
+  continuously growing slice
+- writes are decoupled through an internal buffered channel, so producers do
+  not append directly into the backing store
+- optional bounded retention via `MaxSegments`
+- optional overflow policy via `BlockOnFull`
+  - `true`: apply backpressure and block producers when the input buffer is
+    full
+  - `false`: drop new events when the input buffer is full
+- optional `CloneOnRecord` support for snapshot-safe recording of mutable events
+
+**Why segments?**
+- avoids repeated reallocation/copy of one large backing slice
+- grows memory in predictable chunks
+- makes bounded retention straightforward when only recent history is needed
+
+**Configuration:**
+- `Level`: minimum enabled level for `Debug/Info/Warn`
+- `SegmentSize`: number of events per segment
+- `MaxSegments`: maximum number of retained segments
+  - `0` means unbounded retention
+- `InputBuffer`: size of the internal buffered channel
+- `BlockOnFull`: whether producers block or events are dropped when the input
+  buffer is full
+- `CloneOnRecord`: if supported by the event, store a cloned copy instead of
+  the original object reference
+
+**Operational notes:**
+- `Snapshot()` returns a flattened copy of all retained recorded events
+- `Replay(func(RecordedEvent) error)` iterates recorded events in order
+- `RecordedCount()` returns total successfully stored events
+- `DroppedCount()` returns total dropped events
+  - this includes dropped writes when `BlockOnFull == false`
+  - this may also include evicted events when `MaxSegments` is exceeded
+- `Reset()` clears retained in-memory history
+
+**Example:**
+
+```go
+cfg := &sinks.RecorderSinkConfig{
+  Level:         dto.Info,
+  SegmentSize:   512,
+  MaxSegments:   8,
+  InputBuffer:   1024,
+  BlockOnFull:   false,
+  CloneOnRecord: true,
+}
+
+rec := sinks.NewRecorderSink(cfg)
+r.RegisterSink(rec)
+
+r.Info(events.RlyMeta{
+  MetaType: "section",
+  Text:     "startup",
+})
+
+r.Warn(events.RlyLog{
+    Msg: "cache warmup taking longer than expected",
+})
+
+// Later: inspect what was recorded
+recorded := rec.Snapshot()
+for _, item := range recorded {
+    fmt.Printf("[%s] %s\n", item.Level, item.Event.Message())
+}
+```
+
+**Example: replay recorded events**
+
+```go
+err := rec.Replay(func(item sinks.RecordedEvent) error {
+  fmt.Printf("[%s] %s\n", item.Level, item.Event.Message())
+    return nil
+})
+if err != nil {
+    panic(err)
+}
+```
+
+When to use this sink:
+
+unit/integration tests where you want to assert emitted relay events
+temporary in-memory capture for diagnostics
+recent-history replay of application activity
+as a building block for more advanced buffering or forwarding sinks
+When not to use this sink alone:
+
+if you need durable history across process restarts
+if you need unbounded retention under high throughput
+if replay history may grow very large; in that case, pair this with a file,
+queue, or database-backed sink
+
 ---
 
 ## Logging levels
