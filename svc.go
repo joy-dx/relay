@@ -3,6 +3,7 @@ package relay
 import (
 	"os"
 	"sync"
+	"time"
 
 	"github.com/joy-dx/relay/config"
 	"github.com/joy-dx/relay/dto"
@@ -30,23 +31,29 @@ func (r *RelaySvc) Close() error {
 	return closeErr
 }
 
-func (r *RelaySvc) emit(level dto.RelayLevel, data dto.RelayEventInterface) {
+func (r *RelaySvc) emit(level dto.RelayLevel, event dto.RelayEventInterface) {
+
+	emittedEvent := dto.EmittedEvent{
+		Time:  time.Now(),
+		Level: level,
+		Event: event,
+	}
 
 	// dispatch to registered sinks
 	for _, sink := range r.sinks {
 		switch level {
 		case dto.Debug:
-			sink.Debug(data)
+			sink.Debug(emittedEvent)
 		case dto.Info:
-			sink.Info(data)
+			sink.Info(emittedEvent)
 		case dto.Warn:
-			sink.Warn(data)
+			sink.Warn(emittedEvent)
 		case dto.Error:
-			sink.Error(data)
+			sink.Error(emittedEvent)
 		case dto.Fatal:
-			sink.Fatal(data)
+			sink.Fatal(emittedEvent)
 		case dto.Meta:
-			sink.Meta(data)
+			sink.Meta(emittedEvent)
 		}
 	}
 	// After draining all the sinks, exit if fatal

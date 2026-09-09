@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/joy-dx/relay/config"
 	"github.com/joy-dx/relay/dto"
@@ -17,6 +18,7 @@ type sinkCall struct {
 	Msg   string
 	Type  dto.EventRef
 	Ch    dto.EventChannel
+	Time  time.Time
 }
 
 type recordingSink struct {
@@ -31,24 +33,28 @@ func newRecordingSink(ref string) *recordingSink {
 
 func (s *recordingSink) Ref() string { return s.ref }
 
-func (s *recordingSink) record(level dto.RelayLevel, e dto.RelayEventInterface) {
+func (s *recordingSink) record(level dto.RelayLevel, ev dto.EmittedEvent) {
+	e := ev.Event
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.calls = append(s.calls, sinkCall{
 		Ref:   s.ref,
 		Level: level,
 		Msg:   e.Message(),
 		Type:  e.RelayType(),
 		Ch:    e.RelayChannel(),
+		Time:  ev.Time,
 	})
 }
 
-func (s *recordingSink) Debug(e dto.RelayEventInterface) { s.record(dto.Debug, e) }
-func (s *recordingSink) Info(e dto.RelayEventInterface)  { s.record(dto.Info, e) }
-func (s *recordingSink) Warn(e dto.RelayEventInterface)  { s.record(dto.Warn, e) }
-func (s *recordingSink) Error(e dto.RelayEventInterface) { s.record(dto.Error, e) }
-func (s *recordingSink) Fatal(e dto.RelayEventInterface) { s.record(dto.Fatal, e) }
-func (s *recordingSink) Meta(e dto.RelayEventInterface)  { s.record(dto.Meta, e) }
+func (s *recordingSink) Debug(ev dto.EmittedEvent) { s.record(dto.Debug, ev) }
+func (s *recordingSink) Info(ev dto.EmittedEvent)  { s.record(dto.Info, ev) }
+func (s *recordingSink) Warn(ev dto.EmittedEvent)  { s.record(dto.Warn, ev) }
+func (s *recordingSink) Error(ev dto.EmittedEvent) { s.record(dto.Error, ev) }
+func (s *recordingSink) Fatal(ev dto.EmittedEvent) { s.record(dto.Fatal, ev) }
+func (s *recordingSink) Meta(ev dto.EmittedEvent)  { s.record(dto.Meta, ev) }
 func (s *recordingSink) Close() error {
 	return nil
 }
@@ -213,6 +219,11 @@ func TestRelaySvc_Emit_DispatchesToAllSinks_Golden(t *testing.T) {
 			}
 
 			for i := range tt.want {
+				if got[i].Time.IsZero() {
+					t.Fatalf("call[%d] has zero time", i)
+				}
+
+				got[i].Time = time.Time{}
 				if got[i] != tt.want[i] {
 					t.Fatalf("call[%d] mismatch\nwant: %#v\ngot:  %#v",
 						i, tt.want[i], got[i])
