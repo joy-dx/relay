@@ -125,8 +125,8 @@ go get github.com/joy-dx/relay
 package main
 
 import (
-	"github.com/joy-dx/relay"
-	"github.com/joy-dx/relay/config"
+	"github.com/joy-dx/relay/v2"
+	"github.com/joy-dx/relay/v2/config"
 )
 
 func main() {
@@ -148,9 +148,9 @@ func main() {
 package main
 
 import (
-	"github.com/joy-dx/relay"
-	"github.com/joy-dx/relay/config"
-	"github.com/joy-dx/relay/sinks"
+	"github.com/joy-dx/relay/v2"
+	"github.com/joy-dx/relay/v2/config"
+	"github.com/joy-dx/relay/v2/sinks"
 )
 
 func main() {
@@ -176,8 +176,8 @@ Using `events.RlyLog`:
 package main
 
 import (
-	"github.com/joy-dx/relay"
-	"github.com/joy-dx/relay/events"
+	"github.com/joy-dx/relay/v2"
+	"github.com/joy-dx/relay/v2/events"
 )
 
 func main() {
@@ -474,7 +474,7 @@ Example:
 package myevents
 
 import "log/slog"
-import "github.com/joy-dx/relay/dto"
+import "github.com/joy-dx/relay/v2/dto"
 
 type DBQuery struct {
 	Query string
@@ -520,7 +520,7 @@ package mysinks
 import (
 	"sync"
 
-	"github.com/joy-dx/relay/dto"
+	"github.com/joy-dx/relay/v2/dto"
 )
 
 type CountingSink struct {

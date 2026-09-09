@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joy-dx/relay/dto"
-	"github.com/joy-dx/relay/events"
+	"github.com/joy-dx/relay/v2/dto"
+	"github.com/joy-dx/relay/v2/events"
 )
 
 // --- Golden-table tests -------------------------------------------------------

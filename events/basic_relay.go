@@ -3,7 +3,7 @@ package events
 import (
 	"log/slog"
 
-	"github.com/joy-dx/relay/dto"
+	"github.com/joy-dx/relay/v2/dto"
 )
 
 const RELAY_CHANNEL dto.EventChannel = "relay"

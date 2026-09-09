@@ -3,7 +3,7 @@ package sinks
 import (
 	"fmt"
 
-	"github.com/joy-dx/relay/dto"
+	"github.com/joy-dx/relay/v2/dto"
 )
 
 var levelPriority = map[dto.RelayLevel]int{

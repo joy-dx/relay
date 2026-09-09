@@ -3,8 +3,8 @@ package relay
 import (
 	"sync"
 
-	"github.com/joy-dx/relay/config"
-	"github.com/joy-dx/relay/dto"
+	"github.com/joy-dx/relay/v2/config"
+	"github.com/joy-dx/relay/v2/dto"
 )
 
 var (
