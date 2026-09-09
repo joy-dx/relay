@@ -13,20 +13,15 @@ const RecorderSinkRef = "recorder"
 
 var ErrRecorderClosed = errors.New("recorder sink is closed")
 
-type RecordedEvent struct {
-	Level dto.RelayLevel
-	Event dto.RelayEventInterface
-}
-
 type RecorderSink struct {
 	cfg *RecorderConfig
 
-	input  chan RecordedEvent
+	input  chan dto.EmittedEvent
 	wg     sync.WaitGroup
 	closed atomic.Bool
 
 	mu       sync.RWMutex
-	segments [][]RecordedEvent
+	segments [][]dto.EmittedEvent
 
 	recorded atomic.Uint64
 	dropped  atomic.Uint64
@@ -45,8 +40,8 @@ func NewRecorderSink(cfg *RecorderConfig) *RecorderSink {
 
 	s := &RecorderSink{
 		cfg:      cfg,
-		input:    make(chan RecordedEvent, cfg.InputBuffer),
-		segments: make([][]RecordedEvent, 0, 8),
+		input:    make(chan dto.EmittedEvent, cfg.InputBuffer),
+		segments: make([][]dto.EmittedEvent, 0, 8),
 	}
 
 	s.wg.Add(1)
@@ -59,48 +54,45 @@ func (s *RecorderSink) Ref() string {
 	return RecorderSinkRef
 }
 
-func (s *RecorderSink) Debug(e dto.RelayEventInterface) {
+func (s *RecorderSink) Debug(ev dto.EmittedEvent) {
 	if !levelEnabled(s.cfg.Level, dto.Debug) {
 		return
 	}
-	s.record(dto.Debug, e)
+	s.record(dto.Debug, ev)
 }
 
-func (s *RecorderSink) Info(e dto.RelayEventInterface) {
+func (s *RecorderSink) Info(ev dto.EmittedEvent) {
 	if !levelEnabled(s.cfg.Level, dto.Info) {
 		return
 	}
-	s.record(dto.Info, e)
+	s.record(dto.Info, ev)
 }
 
-func (s *RecorderSink) Warn(e dto.RelayEventInterface) {
+func (s *RecorderSink) Warn(ev dto.EmittedEvent) {
 	if !levelEnabled(s.cfg.Level, dto.Warn) {
 		return
 	}
-	s.record(dto.Warn, e)
+	s.record(dto.Warn, ev)
 }
 
-func (s *RecorderSink) Error(e dto.RelayEventInterface) {
-	s.record(dto.Error, e)
+func (s *RecorderSink) Error(ev dto.EmittedEvent) {
+	s.record(dto.Error, ev)
 }
 
-func (s *RecorderSink) Fatal(e dto.RelayEventInterface) {
-	s.record(dto.Fatal, e)
+func (s *RecorderSink) Fatal(ev dto.EmittedEvent) {
+	s.record(dto.Fatal, ev)
 }
 
-func (s *RecorderSink) Meta(e dto.RelayEventInterface) {
-	s.record(dto.Meta, e)
+func (s *RecorderSink) Meta(ev dto.EmittedEvent) {
+	s.record(dto.Meta, ev)
 }
 
-func (s *RecorderSink) record(level dto.RelayLevel, e dto.RelayEventInterface) {
+func (s *RecorderSink) record(level dto.RelayLevel, ev dto.EmittedEvent) {
 	if s.closed.Load() {
 		return
 	}
 
-	re := RecordedEvent{
-		Level: level,
-		Event: s.prepareEvent(e),
-	}
+	preppedEvent := s.prepareEvent(ev)
 
 	if s.cfg.BlockOnFull {
 		defer func() {
@@ -108,31 +100,25 @@ func (s *RecorderSink) record(level dto.RelayLevel, e dto.RelayEventInterface) {
 				s.dropped.Add(1)
 			}
 		}()
-		s.input <- re
+		s.input <- preppedEvent
 		return
 	}
 
 	select {
-	case s.input <- re:
+	case s.input <- preppedEvent:
 	default:
 		s.dropped.Add(1)
 	}
 }
 
 func (s *RecorderSink) prepareEvent(
-	e dto.RelayEventInterface,
-) dto.RelayEventInterface {
+	ev dto.EmittedEvent,
+) dto.EmittedEvent {
 	if !s.cfg.CloneOnRecord {
-		return e
+		return ev
 	}
 
-	if cloner, ok := e.(interface {
-		Clone() dto.RelayEventInterface
-	}); ok {
-		return cloner.Clone()
-	}
-
-	return e
+	return ev.Clone()
 }
 
 func (s *RecorderSink) run() {
@@ -145,7 +131,7 @@ func (s *RecorderSink) run() {
 			len(s.segments[len(s.segments)-1]) >= s.cfg.SegmentSize {
 			s.segments = append(
 				s.segments,
-				make([]RecordedEvent, 0, s.cfg.SegmentSize),
+				make([]dto.EmittedEvent, 0, s.cfg.SegmentSize),
 			)
 
 			if s.cfg.MaxSegments > 0 && len(s.segments) > s.cfg.MaxSegments {
@@ -176,7 +162,7 @@ func (s *RecorderSink) Close() error {
 	return nil
 }
 
-func (s *RecorderSink) Snapshot() []RecordedEvent {
+func (s *RecorderSink) Snapshot() []dto.EmittedEvent {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -185,7 +171,7 @@ func (s *RecorderSink) Snapshot() []RecordedEvent {
 		total += len(seg)
 	}
 
-	out := make([]RecordedEvent, 0, total)
+	out := make([]dto.EmittedEvent, 0, total)
 	for _, seg := range s.segments {
 		out = append(out, seg...)
 	}
@@ -193,15 +179,15 @@ func (s *RecorderSink) Snapshot() []RecordedEvent {
 	return out
 }
 
-func (s *RecorderSink) Replay(fn func(RecordedEvent) error) error {
+func (s *RecorderSink) Replay(fn func(dto.EmittedEvent) error) error {
 	if fn == nil {
 		return errors.New("replay callback is nil")
 	}
 
 	s.mu.RLock()
-	segments := make([][]RecordedEvent, len(s.segments))
+	segments := make([][]dto.EmittedEvent, len(s.segments))
 	for i, seg := range s.segments {
-		cp := make([]RecordedEvent, len(seg))
+		cp := make([]dto.EmittedEvent, len(seg))
 		copy(cp, seg)
 		segments[i] = cp
 	}

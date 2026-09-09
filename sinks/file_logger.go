@@ -60,45 +60,45 @@ func (s *FileLoggerSink) write(format string, args ...any) {
 	fmt.Fprintf(s.file, format, args...)
 }
 
-func (s *FileLoggerSink) Debug(e dto.RelayEventInterface) {
+func (s *FileLoggerSink) Debug(ev dto.EmittedEvent) {
 	if !levelEnabled(s.cfg.Level, dto.Debug) {
 		return
 	}
-	s.write("%s: %s\n", PadRight(string(e.RelayType()), s.padding), e.Message())
+	s.write("%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
 }
 
-func (s *FileLoggerSink) Info(e dto.RelayEventInterface) {
+func (s *FileLoggerSink) Info(ev dto.EmittedEvent) {
 	if !levelEnabled(s.cfg.Level, dto.Info) {
 		return
 	}
 
-	s.write("%s: %s\n", PadRight(string(e.RelayType()), s.padding), e.Message())
+	s.write("%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
 }
 
-func (s *FileLoggerSink) Warn(e dto.RelayEventInterface) {
+func (s *FileLoggerSink) Warn(ev dto.EmittedEvent) {
 	if !levelEnabled(s.cfg.Level, dto.Warn) {
 		return
 	}
 
-	s.write("%s: %s\n", PadRight(string(e.RelayType()), s.padding), e.Message())
+	s.write("%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
 }
 
-func (s *FileLoggerSink) Error(e dto.RelayEventInterface) {
+func (s *FileLoggerSink) Error(ev dto.EmittedEvent) {
 	if !levelEnabled(s.cfg.Level, dto.Error) {
 		return
 	}
-	s.write("ERROR: %s\n", e.Message())
+	s.write("ERROR: %s\n", ev.Event.Message())
 }
 
-func (s *FileLoggerSink) Fatal(e dto.RelayEventInterface) {
+func (s *FileLoggerSink) Fatal(ev dto.EmittedEvent) {
 	if !levelEnabled(s.cfg.Level, dto.Fatal) {
 		return
 	}
-	s.write("FATAL: %s\n", e.Message())
+	s.write("FATAL: %s\n", ev.Event.Message())
 }
 
-func (s *FileLoggerSink) Meta(e dto.RelayEventInterface) {
-	s.write("META: %s\n", e.Message())
+func (s *FileLoggerSink) Meta(ev dto.EmittedEvent) {
+	s.write("META: %s\n", ev.Event.Message())
 }
 
 func (s *FileLoggerSink) Close() error {

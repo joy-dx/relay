@@ -34,37 +34,37 @@ func (s *SimpleLoggerSink) Ref() string {
 	return SimpleLoggerRef
 }
 
-func (s *SimpleLoggerSink) Debug(e dto.RelayEventInterface) {
+func (s *SimpleLoggerSink) Debug(ev dto.EmittedEvent) {
 	if !levelEnabled(s.cfg.Level, dto.Debug) {
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(e.RelayType()), s.padding), e.Message())
+	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
 }
 
-func (s *SimpleLoggerSink) Info(e dto.RelayEventInterface) {
+func (s *SimpleLoggerSink) Info(ev dto.EmittedEvent) {
 	if !levelEnabled(s.cfg.Level, dto.Info) {
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(e.RelayType()), s.padding), e.Message())
+	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
 }
 
-func (s *SimpleLoggerSink) Warn(e dto.RelayEventInterface) {
+func (s *SimpleLoggerSink) Warn(ev dto.EmittedEvent) {
 	if !levelEnabled(s.cfg.Level, dto.Warn) {
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(e.RelayType()), s.padding), e.Message())
+	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
 }
 
-func (s *SimpleLoggerSink) Error(e dto.RelayEventInterface) {
-	fmt.Fprintln(s.writer, e.Message())
+func (s *SimpleLoggerSink) Error(ev dto.EmittedEvent) {
+	fmt.Fprintln(s.writer, ev.Event.Message())
 }
 
-func (s *SimpleLoggerSink) Fatal(e dto.RelayEventInterface) {
-	fmt.Fprintln(s.writer, e.Message())
+func (s *SimpleLoggerSink) Fatal(ev dto.EmittedEvent) {
+	fmt.Fprintln(s.writer, ev.Event.Message())
 }
 
-func (s *SimpleLoggerSink) Meta(e dto.RelayEventInterface) {
-	metaCfg, castOk := e.(events.RlyMeta)
+func (s *SimpleLoggerSink) Meta(ev dto.EmittedEvent) {
+	metaCfg, castOk := ev.Event.(events.RlyMeta)
 	if !castOk {
 		fmt.Fprintln(s.writer, "Could not cast to RlyMeta")
 		return
@@ -73,20 +73,20 @@ func (s *SimpleLoggerSink) Meta(e dto.RelayEventInterface) {
 	switch metaCfg.MetaType {
 	case "section":
 		fmt.Fprintln(s.writer, "")
-		fmt.Fprintln(s.writer, "## "+e.Message())
+		fmt.Fprintln(s.writer, "## "+ev.Event.Message())
 		fmt.Fprintln(s.writer, "")
 
 	case "failure":
 		if _, printErr := output.ErrorColor.Print(" FAILURE "); printErr != nil {
 			fmt.Fprintln(s.writer, "failure print error: "+printErr.Error())
 		}
-		fmt.Fprintln(s.writer, " "+e.Message())
+		fmt.Fprintln(s.writer, " "+ev.Event.Message())
 
 	case "success":
 		if _, printErr := output.SuccessColor.Print(" SUCCESS "); printErr != nil {
 			fmt.Fprintln(s.writer, "failure print error: "+printErr.Error())
 		}
-		fmt.Fprintln(s.writer, " "+e.Message())
+		fmt.Fprintln(s.writer, " "+ev.Event.Message())
 	}
 }
 

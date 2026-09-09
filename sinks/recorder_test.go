@@ -201,10 +201,13 @@ func TestRecorderSink_Golden(t *testing.T) {
 					name: "burst writes",
 					run: func(t *testing.T, s *RecorderSink) {
 						for i := 0; i < 2000; i++ {
-							s.Info(testEvent{
-								typ: fmt.Sprintf("type-%d", i),
-								msg: fmt.Sprintf("msg-%d", i),
-							})
+							s.Info(dto.EmittedEvent{
+								Level: dto.Info,
+								Event: testEvent{
+									typ: fmt.Sprintf("type-%d", i),
+									msg: fmt.Sprintf("msg-%d", i),
+								}},
+							)
 						}
 					},
 				},
@@ -232,8 +235,12 @@ func TestRecorderSink_Golden(t *testing.T) {
 						if len(snap1) != 2 {
 							t.Fatalf("expected snapshot size 2, got %d", len(snap1))
 						}
-
-						s.Info(testEvent{typ: "gamma", msg: "three"})
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								typ: "gamma", msg: "three",
+							}},
+						)
 						waitForRecorderCount(t, s, 3)
 
 						if len(snap1) != 2 {
@@ -386,7 +393,10 @@ func TestRecorderSink_Golden(t *testing.T) {
 								msg: "original",
 							},
 						}
-						s.Info(ev)
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: ev,
+						})
 						waitForRecorderCount(t, s, 1)
 					},
 				},
@@ -526,10 +536,13 @@ func TestRecorderSink_ConcurrentWriters(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := 0; i < perGoroutine; i++ {
-				sink.Info(testEvent{
-					typ: fmt.Sprintf("g-%d", g),
-					msg: fmt.Sprintf("m-%d", i),
-				})
+				sink.Info(dto.EmittedEvent{
+					Level: dto.Info,
+					Event: testEvent{
+						typ: fmt.Sprintf("g-%d", g),
+						msg: fmt.Sprintf("m-%d", i),
+					}},
+				)
 			}
 		}()
 	}
@@ -570,8 +583,10 @@ func TestRecorderSink_ReplayNilCallback(t *testing.T) {
 	defer func() {
 		_ = sink.Close()
 	}()
-
-	sink.Info(testEvent{typ: "x", msg: "y"})
+	sink.Info(dto.EmittedEvent{
+		Level: dto.Info,
+		Event: testEvent{typ: "x", msg: "y"}},
+	)
 	waitForRecorderCount(t, sink, 1)
 
 	err := sink.Replay(nil)
@@ -605,7 +620,10 @@ func actDebug(typ string, msg string) recorderAction {
 	return recorderAction{
 		name: "debug",
 		run: func(t *testing.T, s *RecorderSink) {
-			s.Debug(testEvent{typ: typ, msg: msg})
+			s.Debug(dto.EmittedEvent{
+				Level: dto.Debug,
+				Event: testEvent{typ: typ, msg: msg}},
+			)
 		},
 	}
 }
@@ -614,7 +632,7 @@ func actInfo(typ string, msg string) recorderAction {
 	return recorderAction{
 		name: "info",
 		run: func(t *testing.T, s *RecorderSink) {
-			s.Info(testEvent{typ: typ, msg: msg})
+			s.Info(dto.EmittedEvent{Level: dto.Info, Event: testEvent{typ: typ, msg: msg}})
 		},
 	}
 }
@@ -623,7 +641,7 @@ func actWarn(typ string, msg string) recorderAction {
 	return recorderAction{
 		name: "warn",
 		run: func(t *testing.T, s *RecorderSink) {
-			s.Warn(testEvent{typ: typ, msg: msg})
+			s.Warn(dto.EmittedEvent{Level: dto.Warn, Event: testEvent{typ: typ, msg: msg}})
 		},
 	}
 }
@@ -632,7 +650,7 @@ func actError(typ string, msg string) recorderAction {
 	return recorderAction{
 		name: "error",
 		run: func(t *testing.T, s *RecorderSink) {
-			s.Error(testEvent{typ: typ, msg: msg})
+			s.Error(dto.EmittedEvent{Level: dto.Error, Event: testEvent{typ: typ, msg: msg}})
 		},
 	}
 }
@@ -641,7 +659,7 @@ func actFatal(typ string, msg string) recorderAction {
 	return recorderAction{
 		name: "fatal",
 		run: func(t *testing.T, s *RecorderSink) {
-			s.Fatal(testEvent{typ: typ, msg: msg})
+			s.Fatal(dto.EmittedEvent{Level: dto.Fatal, Event: testEvent{typ: typ, msg: msg}})
 		},
 	}
 }
@@ -650,14 +668,14 @@ func actMeta(typ string, msg string) recorderAction {
 	return recorderAction{
 		name: "meta",
 		run: func(t *testing.T, s *RecorderSink) {
-			s.Meta(testEvent{typ: typ, msg: msg})
+			s.Meta(dto.EmittedEvent{Level: dto.Meta, Event: testEvent{typ: typ, msg: msg}})
 		},
 	}
 }
 
 func assertSnapshotMatchesGolden(
 	t *testing.T,
-	got []RecordedEvent,
+	got []dto.EmittedEvent,
 	want []goldenRecordedEvent,
 ) {
 	t.Helper()
@@ -704,7 +722,7 @@ func assertReplayBehavior(
 	var replayed []goldenRecordedEvent
 	idx := 0
 
-	err := sink.Replay(func(re RecordedEvent) error {
+	err := sink.Replay(func(re dto.EmittedEvent) error {
 		if tc.wantReplayErr != nil && idx == tc.replayErrAt {
 			return tc.wantReplayErr
 		}
@@ -777,8 +795,8 @@ func assertReplayBehavior(
 
 func assertRecordedEventsEqual(
 	t *testing.T,
-	want []RecordedEvent,
-	got []RecordedEvent,
+	want []dto.EmittedEvent,
+	got []dto.EmittedEvent,
 ) {
 	t.Helper()
 

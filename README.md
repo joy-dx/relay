@@ -44,6 +44,27 @@ Two built-in events exist in the repo:
 - `events.RlyLog` (basic log message)
 - `events.RlyMeta` (special meta events such as `section`, `success`, `failure`)
 
+### Emitted events
+
+Before dispatching to sinks, RelaySvc wraps the event in an envelope:
+
+```go
+type EmittedEvent struct {
+Time  time.Time
+Level RelayLevel
+Event RelayEventInterface
+}
+```
+
+This keeps domain event types small and focused, while allowing sinks to access:
+
+* the original typed event via `Event`
+* the relay-assigned timestamp via `Time`
+* the emitted level via `Level`
+* 
+This also guarantees that all sinks see the same event timestamp for a single
+emission.
+
 ### Sinks
 A sink is any implementation of:
 
@@ -61,6 +82,20 @@ type RelaySinkInterface interface {
 ```
 
 Sinks decide how and where the event is output (stdout, structured slog, filtered stdout, etc).
+
+### Fatal behavior
+
+`RelaySvc.Fatal(...)`:
+
+* creates an EmittedEvent with Level == dto.Fatal
+* dispatches it to all sinks via Emit(...)
+* calls os.Exit(1)
+
+Because it exits the process, use Fatal sparingly, usually only at the
+application boundary or CLI entrypoint.
+
+If you want Fatal to be testable without exiting, inject an exiter into the
+service.
 
 ### Shutdown and cleanup
 
@@ -429,18 +464,6 @@ Sinks use `GetLogLevelIndex(cfg.Level, dto.Levels)` and compare indices to decid
 
 ---
 
-## Fatal behavior
-
-`RelaySvc.Fatal(...)`:
-1. dispatches the event to all sinks (`sink.Fatal(event)`)
-2. calls `os.Exit(1)`
-
-Because it exits the process, use `Fatal` sparingly (usually only at the application boundary / CLI entrypoint).
-
-If you want `Fatal` to be testable without exiting, inject an exiter into the service (see refactor suggestion in the test discussions).
-
----
-
 ## Creating a custom event
 
 Any struct can be an event by implementing `dto.RelayEventInterface`.
@@ -521,12 +544,12 @@ func (s *CountingSink) add(e dto.RelayEventInterface) {
 	s.counts[e.RelayType()]++
 }
 
-func (s *CountingSink) Debug(e dto.RelayEventInterface) { s.add(e) }
-func (s *CountingSink) Info(e dto.RelayEventInterface)  { s.add(e) }
-func (s *CountingSink) Warn(e dto.RelayEventInterface)  { s.add(e) }
-func (s *CountingSink) Error(e dto.RelayEventInterface) { s.add(e) }
-func (s *CountingSink) Fatal(e dto.RelayEventInterface) { s.add(e) }
-func (s *CountingSink) Meta(e dto.RelayEventInterface)  { s.add(e) }
+func (s *CountingSink) Debug(e dto.EmittedEvent) { s.add(e) }
+func (s *CountingSink) Info(e dto.EmittedEvent)  { s.add(e) }
+func (s *CountingSink) Warn(e dto.EmittedEvent)  { s.add(e) }
+func (s *CountingSink) Error(e dto.EmittedEvent) { s.add(e) }
+func (s *CountingSink) Fatal(e dto.EmittedEvent) { s.add(e) }
+func (s *CountingSink) Meta(e dto.EmittedEvent)  { s.add(e) }
 
 // Optional: expose counts
 func (s *CountingSink) Snapshot() map[dto.EventRef]int {

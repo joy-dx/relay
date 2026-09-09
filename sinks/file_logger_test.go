@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/joy-dx/relay/dto"
 )
@@ -32,7 +33,11 @@ func TestFileLoggerSink_Golden(t *testing.T) {
 			name:  "debug suppressed at info",
 			level: dto.Info,
 			call: func(s *FileLoggerSink) {
-				s.Debug(fileMsgEvent{msg: "debug-msg"})
+				s.Debug(dto.EmittedEvent{
+					Time:  time.Now(),
+					Level: dto.Debug,
+					Event: fileMsgEvent{msg: "debug-msg"},
+				})
 			},
 			wantOutput: "",
 		},
@@ -40,7 +45,11 @@ func TestFileLoggerSink_Golden(t *testing.T) {
 			name:  "info printed at info",
 			level: dto.Info,
 			call: func(s *FileLoggerSink) {
-				s.Info(fileMsgEvent{msg: "info-msg"})
+				s.Info(dto.EmittedEvent{
+					Time:  time.Now(),
+					Level: dto.Info,
+					Event: fileMsgEvent{msg: "info-msg"},
+				})
 			},
 			wantOutput: "relay.log: info-msg\n",
 		},
@@ -48,7 +57,11 @@ func TestFileLoggerSink_Golden(t *testing.T) {
 			name:  "warn printed at info",
 			level: dto.Info,
 			call: func(s *FileLoggerSink) {
-				s.Warn(fileMsgEvent{msg: "warn-msg"})
+				s.Warn(dto.EmittedEvent{
+					Time:  time.Now(),
+					Level: dto.Warn,
+					Event: fileMsgEvent{msg: "warn-msg"},
+				})
 			},
 			wantOutput: "relay.log: warn-msg\n",
 		},
@@ -56,7 +69,11 @@ func TestFileLoggerSink_Golden(t *testing.T) {
 			name:  "error printed when enabled",
 			level: dto.Error,
 			call: func(s *FileLoggerSink) {
-				s.Error(fileMsgEvent{msg: "error-msg"})
+				s.Error(dto.EmittedEvent{
+					Time:  time.Now(),
+					Level: dto.Error,
+					Event: fileMsgEvent{msg: "error-msg"},
+				})
 			},
 			wantOutput: "ERROR: error-msg\n",
 		},
@@ -64,7 +81,11 @@ func TestFileLoggerSink_Golden(t *testing.T) {
 			name:  "fatal printed when enabled",
 			level: dto.Fatal,
 			call: func(s *FileLoggerSink) {
-				s.Fatal(fileMsgEvent{msg: "fatal-msg"})
+				s.Fatal(dto.EmittedEvent{
+					Time:  time.Now(),
+					Level: dto.Fatal,
+					Event: fileMsgEvent{msg: "fatal-msg"},
+				})
 			},
 			wantOutput: "FATAL: fatal-msg\n",
 		},
@@ -72,7 +93,11 @@ func TestFileLoggerSink_Golden(t *testing.T) {
 			name:  "meta always prints",
 			level: dto.Fatal,
 			call: func(s *FileLoggerSink) {
-				s.Meta(fileMsgEvent{msg: "meta-msg"})
+				s.Meta(dto.EmittedEvent{
+					Time:  time.Now(),
+					Level: dto.Meta,
+					Event: fileMsgEvent{msg: "meta-msg"},
+				})
 			},
 			wantOutput: "META: meta-msg\n",
 		},
@@ -164,8 +189,16 @@ func TestFileLoggerSink_Appends(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	sink.Info(fileMsgEvent{msg: "first"})
-	sink.Info(fileMsgEvent{msg: "second"})
+	sink.Info(dto.EmittedEvent{
+		Time:  time.Now(),
+		Level: dto.Info,
+		Event: fileMsgEvent{msg: "first"},
+	})
+	sink.Info(dto.EmittedEvent{
+		Time:  time.Now(),
+		Level: dto.Info,
+		Event: fileMsgEvent{msg: "second"},
+	})
 	sink.Close()
 
 	data, err := os.ReadFile(logPath)

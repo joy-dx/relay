@@ -24,10 +24,14 @@ type RelayInterface interface {
 type RelaySinkInterface interface {
 	Ref() string
 	Close() error
-	Debug(data RelayEventInterface)
-	Info(data RelayEventInterface)
-	Warn(data RelayEventInterface)
-	Error(data RelayEventInterface)
-	Fatal(data RelayEventInterface)
-	Meta(data RelayEventInterface)
+	Debug(EmittedEvent)
+	Info(EmittedEvent)
+	Warn(EmittedEvent)
+	Error(EmittedEvent)
+	Fatal(EmittedEvent)
+	Meta(EmittedEvent)
+}
+
+type CloneableRelayEvent interface {
+	Clone() RelayEventInterface
 }

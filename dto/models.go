@@ -1,7 +1,6 @@
 package dto
 
 import (
-	"encoding/json"
 	"time"
 )
 
@@ -13,10 +12,16 @@ type RelaySinkConfig struct {
 	Level RelayLevel `json:"level"`
 }
 
-type Event struct {
-	Channel   EventChannel    `json:"channel"`
-	Ref       EventRef        `json:"ref"` // The event key (used for routing)
-	Level     RelayLevel      `json:"level"`
-	Timestamp time.Time       `json:"timestamp" ts_type:"string"` // Event creation time
-	Data      json.RawMessage `json:"data"`                       // The marshaled JSON data
+type EmittedEvent struct {
+	Time  time.Time
+	Level RelayLevel
+	Event RelayEventInterface
+}
+
+func (e EmittedEvent) Clone() EmittedEvent {
+	out := e
+	if cloner, ok := e.Event.(CloneableRelayEvent); ok {
+		out.Event = cloner.Clone()
+	}
+	return out
 }

@@ -46,23 +46,23 @@ func convertLevel(l dto.RelayLevel) slog.Level {
 	}
 }
 
-func (s *StructuredLogger) Debug(e dto.RelayEventInterface) {
-	s.logger.LogAttrs(context.Background(), slog.LevelDebug, e.Message(), e.ToSlog()...)
+func (s *StructuredLogger) Debug(ev dto.EmittedEvent) {
+	s.logger.LogAttrs(context.Background(), slog.LevelDebug, ev.Event.Message(), ev.Event.ToSlog()...)
 }
-func (s *StructuredLogger) Info(e dto.RelayEventInterface) {
-	s.logger.LogAttrs(context.Background(), slog.LevelInfo, e.Message(), e.ToSlog()...)
+func (s *StructuredLogger) Info(ev dto.EmittedEvent) {
+	s.logger.LogAttrs(context.Background(), slog.LevelInfo, ev.Event.Message(), ev.Event.ToSlog()...)
 }
-func (s *StructuredLogger) Warn(e dto.RelayEventInterface) {
-	s.logger.LogAttrs(context.Background(), slog.LevelWarn, e.Message(), e.ToSlog()...)
+func (s *StructuredLogger) Warn(ev dto.EmittedEvent) {
+	s.logger.LogAttrs(context.Background(), slog.LevelWarn, ev.Event.Message(), ev.Event.ToSlog()...)
 }
-func (s *StructuredLogger) Error(e dto.RelayEventInterface) {
-	s.logger.LogAttrs(context.Background(), slog.LevelError, e.Message(), e.ToSlog()...)
+func (s *StructuredLogger) Error(ev dto.EmittedEvent) {
+	s.logger.LogAttrs(context.Background(), slog.LevelError, ev.Event.Message(), ev.Event.ToSlog()...)
 }
-func (s *StructuredLogger) Fatal(e dto.RelayEventInterface) {
-	s.logger.LogAttrs(context.Background(), slog.LevelError, "FATAL", e.ToSlog()...)
+func (s *StructuredLogger) Fatal(ev dto.EmittedEvent) {
+	s.logger.LogAttrs(context.Background(), slog.LevelError, "FATAL", ev.Event.ToSlog()...)
 }
 
-func (s *StructuredLogger) Meta(e dto.RelayEventInterface) {
+func (s *StructuredLogger) Meta(ev dto.EmittedEvent) {
 
 }
 
