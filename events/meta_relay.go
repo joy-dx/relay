@@ -3,7 +3,7 @@ package events
 import (
 	"log/slog"
 
-	"github.com/joy-dx/relay/dto"
+	"github.com/joy-dx/relay/v2/dto"
 )
 
 // RlyMeta Special handler for custom relay events that the developer processes on an as needed basis

@@ -5,9 +5,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/joy-dx/relay/dto"
-	"github.com/joy-dx/relay/events"
-	"github.com/joy-dx/relay/output"
+	"github.com/joy-dx/relay/v2/dto"
+	"github.com/joy-dx/relay/v2/events"
+	"github.com/joy-dx/relay/v2/output"
 )
 
 const SimpleLoggerRef = "simple"

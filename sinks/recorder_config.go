@@ -1,7 +1,7 @@
 package sinks
 
 import (
-	"github.com/joy-dx/relay/dto"
+	"github.com/joy-dx/relay/v2/dto"
 )
 
 type RecorderConfig struct {

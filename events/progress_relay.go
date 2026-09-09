@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/joy-dx/relay/dto"
+	"github.com/joy-dx/relay/v2/dto"
 )
 
 // RlyProgress Special handler for tracking task progress
