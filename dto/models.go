@@ -13,9 +13,9 @@ type RelaySinkConfig struct {
 }
 
 type EmittedEvent struct {
-	Time  time.Time
-	Level RelayLevel
-	Event RelayEventInterface
+	Time  time.Time           `json:"time" yaml:"time" ts_type:"string"`
+	Level RelayLevel          `json:"level" yaml:"level"`
+	Event RelayEventInterface `json:"event" yaml:"event"`
 }
 
 func (e EmittedEvent) Clone() EmittedEvent {
