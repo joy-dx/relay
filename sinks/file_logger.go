@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/joy-dx/relay/v2/dto"
+	"github.com/joy-dx/relay/dto"
 )
 
 const FileLoggerRef = "file"
@@ -60,45 +60,45 @@ func (s *FileLoggerSink) write(format string, args ...any) {
 	fmt.Fprintf(s.file, format, args...)
 }
 
-func (s *FileLoggerSink) Debug(ev dto.EmittedEvent) {
+func (s *FileLoggerSink) Debug(ev dto.RelayEventInterface) {
 	if !levelEnabled(s.cfg.Level, dto.Debug) {
 		return
 	}
-	s.write("%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
+	s.write("%s: %s\n", PadRight(string(ev.RelayType()), s.padding), ev.Message())
 }
 
-func (s *FileLoggerSink) Info(ev dto.EmittedEvent) {
+func (s *FileLoggerSink) Info(ev dto.RelayEventInterface) {
 	if !levelEnabled(s.cfg.Level, dto.Info) {
 		return
 	}
 
-	s.write("%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
+	s.write("%s: %s\n", PadRight(string(ev.RelayType()), s.padding), ev.Message())
 }
 
-func (s *FileLoggerSink) Warn(ev dto.EmittedEvent) {
+func (s *FileLoggerSink) Warn(ev dto.RelayEventInterface) {
 	if !levelEnabled(s.cfg.Level, dto.Warn) {
 		return
 	}
 
-	s.write("%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
+	s.write("%s: %s\n", PadRight(string(ev.RelayType()), s.padding), ev.Message())
 }
 
-func (s *FileLoggerSink) Error(ev dto.EmittedEvent) {
+func (s *FileLoggerSink) Error(ev dto.RelayEventInterface) {
 	if !levelEnabled(s.cfg.Level, dto.Error) {
 		return
 	}
-	s.write("ERROR: %s\n", ev.Event.Message())
+	s.write("ERROR: %s\n", ev.Message())
 }
 
-func (s *FileLoggerSink) Fatal(ev dto.EmittedEvent) {
+func (s *FileLoggerSink) Fatal(ev dto.RelayEventInterface) {
 	if !levelEnabled(s.cfg.Level, dto.Fatal) {
 		return
 	}
-	s.write("FATAL: %s\n", ev.Event.Message())
+	s.write("FATAL: %s\n", ev.Message())
 }
 
-func (s *FileLoggerSink) Meta(ev dto.EmittedEvent) {
-	s.write("META: %s\n", ev.Event.Message())
+func (s *FileLoggerSink) Meta(ev dto.RelayEventInterface) {
+	s.write("META: %s\n", ev.Message())
 }
 
 func (s *FileLoggerSink) Close() error {

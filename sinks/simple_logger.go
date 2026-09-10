@@ -5,9 +5,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/joy-dx/relay/v2/dto"
-	"github.com/joy-dx/relay/v2/events"
-	"github.com/joy-dx/relay/v2/output"
+	"github.com/joy-dx/relay/dto"
+	"github.com/joy-dx/relay/events"
+	"github.com/joy-dx/relay/output"
 )
 
 const SimpleLoggerRef = "simple"
@@ -34,37 +34,37 @@ func (s *SimpleLoggerSink) Ref() string {
 	return SimpleLoggerRef
 }
 
-func (s *SimpleLoggerSink) Debug(ev dto.EmittedEvent) {
+func (s *SimpleLoggerSink) Debug(ev dto.RelayEventInterface) {
 	if !levelEnabled(s.cfg.Level, dto.Debug) {
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
+	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.RelayType()), s.padding), ev.Message())
 }
 
-func (s *SimpleLoggerSink) Info(ev dto.EmittedEvent) {
+func (s *SimpleLoggerSink) Info(ev dto.RelayEventInterface) {
 	if !levelEnabled(s.cfg.Level, dto.Info) {
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
+	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.RelayType()), s.padding), ev.Message())
 }
 
-func (s *SimpleLoggerSink) Warn(ev dto.EmittedEvent) {
+func (s *SimpleLoggerSink) Warn(ev dto.RelayEventInterface) {
 	if !levelEnabled(s.cfg.Level, dto.Warn) {
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
+	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.RelayType()), s.padding), ev.Message())
 }
 
-func (s *SimpleLoggerSink) Error(ev dto.EmittedEvent) {
-	fmt.Fprintln(s.writer, ev.Event.Message())
+func (s *SimpleLoggerSink) Error(ev dto.RelayEventInterface) {
+	fmt.Fprintln(s.writer, ev.Message())
 }
 
-func (s *SimpleLoggerSink) Fatal(ev dto.EmittedEvent) {
-	fmt.Fprintln(s.writer, ev.Event.Message())
+func (s *SimpleLoggerSink) Fatal(ev dto.RelayEventInterface) {
+	fmt.Fprintln(s.writer, ev.Message())
 }
 
-func (s *SimpleLoggerSink) Meta(ev dto.EmittedEvent) {
-	metaCfg, castOk := ev.Event.(events.RlyMeta)
+func (s *SimpleLoggerSink) Meta(ev dto.RelayEventInterface) {
+	metaCfg, castOk := ev.(events.RlyMeta)
 	if !castOk {
 		fmt.Fprintln(s.writer, "Could not cast to RlyMeta")
 		return
@@ -73,20 +73,20 @@ func (s *SimpleLoggerSink) Meta(ev dto.EmittedEvent) {
 	switch metaCfg.MetaType {
 	case "section":
 		fmt.Fprintln(s.writer, "")
-		fmt.Fprintln(s.writer, "## "+ev.Event.Message())
+		fmt.Fprintln(s.writer, "## "+ev.Message())
 		fmt.Fprintln(s.writer, "")
 
 	case "failure":
 		if _, printErr := output.ErrorColor.Print(" FAILURE "); printErr != nil {
 			fmt.Fprintln(s.writer, "failure print error: "+printErr.Error())
 		}
-		fmt.Fprintln(s.writer, " "+ev.Event.Message())
+		fmt.Fprintln(s.writer, " "+ev.Message())
 
 	case "success":
 		if _, printErr := output.SuccessColor.Print(" SUCCESS "); printErr != nil {
 			fmt.Fprintln(s.writer, "failure print error: "+printErr.Error())
 		}
-		fmt.Fprintln(s.writer, " "+ev.Event.Message())
+		fmt.Fprintln(s.writer, " "+ev.Message())
 	}
 }
 

@@ -6,9 +6,8 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/joy-dx/relay/v2/dto"
+	"github.com/joy-dx/relay/dto"
 )
 
 // --- Test event fixtures ------------------------------------------------------
@@ -37,13 +36,11 @@ func TestStructuredLogger_convertLevel_Golden(t *testing.T) {
 		{name: "info", in: dto.Info, want: slog.LevelInfo},
 		{name: "warn", in: dto.Warn, want: slog.LevelWarn},
 		{name: "error", in: dto.Error, want: slog.LevelError},
+		// Fatal maps to error in current implementation
 		{name: "fatal maps to error", in: dto.Fatal, want: slog.LevelError},
+		// Meta/default also map to error in current implementation
 		{name: "meta maps to error", in: dto.Meta, want: slog.LevelError},
-		{
-			name: "unknown maps to error",
-			in:   dto.RelayLevel("nope"),
-			want: slog.LevelError,
-		},
+		{name: "unknown maps to error", in: dto.RelayLevel("nope"), want: slog.LevelError},
 	}
 
 	for _, tt := range tests {
@@ -62,23 +59,27 @@ func TestStructuredLogger_convertLevel_Golden(t *testing.T) {
 func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 	t.Parallel()
 
+	// We avoid NewStructuredLogger() because it hardcodes os.Stdout.
+	// Instead, we build the logger with a handler that writes to a buffer.
+	//
+	// This still tests StructuredLogger’s methods and formatting produced
+	// by slog.NewTextHandler.
+
 	type golden struct {
 		name      string
 		minLevel  slog.Level
-		call      func(l *StructuredLogger, ev dto.EmittedEvent)
-		event     dto.EmittedEvent
-		wantAny   []string
-		wantNone  []string
-		wantEmpty bool
+		call      func(l *StructuredLogger, e dto.RelayEventInterface)
+		event     dto.RelayEventInterface
+		wantAny   []string // substrings that must appear
+		wantNone  []string // substrings that must NOT appear
+		wantEmpty bool     // expect no output
+		normalize bool
 	}
-
-	fixedTime := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 
 	mkLogger := func(min slog.Level, buf *bytes.Buffer) *StructuredLogger {
 		h := slog.NewTextHandler(buf, &slog.HandlerOptions{
 			Level: min,
 		})
-
 		return &StructuredLogger{
 			cfg:    &StructuredLoggerConfig{Level: dto.Info},
 			logger: slog.New(h),
@@ -89,18 +90,14 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 		{
 			name:     "debug emits msg and attrs when enabled",
 			minLevel: slog.LevelDebug,
-			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Debug(ev)
+			call: func(l *StructuredLogger, e dto.RelayEventInterface) {
+				l.Debug(e)
 			},
-			event: dto.EmittedEvent{
-				Time:  fixedTime,
-				Level: dto.Debug,
-				Event: slogEvent{
-					msg: "hello",
-					attrs: []slog.Attr{
-						slog.String("k", "v"),
-						slog.Int("n", 42),
-					},
+			event: slogEvent{
+				msg: "hello",
+				attrs: []slog.Attr{
+					slog.String("k", "v"),
+					slog.Int("n", 42),
 				},
 			},
 			wantAny: []string{
@@ -113,17 +110,13 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 		{
 			name:     "debug suppressed when min is info",
 			minLevel: slog.LevelInfo,
-			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Debug(ev)
+			call: func(l *StructuredLogger, e dto.RelayEventInterface) {
+				l.Debug(e)
 			},
-			event: dto.EmittedEvent{
-				Time:  fixedTime,
-				Level: dto.Debug,
-				Event: slogEvent{
-					msg: "hello",
-					attrs: []slog.Attr{
-						slog.String("k", "v"),
-					},
+			event: slogEvent{
+				msg: "hello",
+				attrs: []slog.Attr{
+					slog.String("k", "v"),
 				},
 			},
 			wantEmpty: true,
@@ -131,17 +124,13 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 		{
 			name:     "info emits msg and attrs at info",
 			minLevel: slog.LevelInfo,
-			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Info(ev)
+			call: func(l *StructuredLogger, e dto.RelayEventInterface) {
+				l.Info(e)
 			},
-			event: dto.EmittedEvent{
-				Time:  fixedTime,
-				Level: dto.Info,
-				Event: slogEvent{
-					msg: "info-msg",
-					attrs: []slog.Attr{
-						slog.String("channel", "relay"),
-					},
+			event: slogEvent{
+				msg: "info-msg",
+				attrs: []slog.Attr{
+					slog.String("channel", "relay"),
 				},
 			},
 			wantAny: []string{
@@ -153,17 +142,13 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 		{
 			name:     "warn emits at warn",
 			minLevel: slog.LevelWarn,
-			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Warn(ev)
+			call: func(l *StructuredLogger, e dto.RelayEventInterface) {
+				l.Warn(e)
 			},
-			event: dto.EmittedEvent{
-				Time:  fixedTime,
-				Level: dto.Warn,
-				Event: slogEvent{
-					msg: "warn-msg",
-					attrs: []slog.Attr{
-						slog.String("writer", "1"),
-					},
+			event: slogEvent{
+				msg: "warn-msg",
+				attrs: []slog.Attr{
+					slog.String("writer", "1"),
 				},
 			},
 			wantAny: []string{
@@ -175,17 +160,13 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 		{
 			name:     "error emits at error",
 			minLevel: slog.LevelError,
-			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Error(ev)
+			call: func(l *StructuredLogger, e dto.RelayEventInterface) {
+				l.Error(e)
 			},
-			event: dto.EmittedEvent{
-				Time:  fixedTime,
-				Level: dto.Error,
-				Event: slogEvent{
-					msg: "error-msg",
-					attrs: []slog.Attr{
-						slog.String("e", "1"),
-					},
+			event: slogEvent{
+				msg: "error-msg",
+				attrs: []slog.Attr{
+					slog.String("e", "1"),
 				},
 			},
 			wantAny: []string{
@@ -195,19 +176,15 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 			},
 		},
 		{
-			name:     "fatal uses ERROR level and message literal FATAL (not event message)",
+			name:     "fatal uses ERROR level and message literal FATAL (not e.Message())",
 			minLevel: slog.LevelDebug,
-			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Fatal(ev)
+			call: func(l *StructuredLogger, e dto.RelayEventInterface) {
+				l.Fatal(e)
 			},
-			event: dto.EmittedEvent{
-				Time:  fixedTime,
-				Level: dto.Fatal,
-				Event: slogEvent{
-					msg: "should-not-appear-as-msg",
-					attrs: []slog.Attr{
-						slog.String("reason", "boom"),
-					},
+			event: slogEvent{
+				msg: "should-not-appear-as-msg",
+				attrs: []slog.Attr{
+					slog.String("reason", "boom"),
 				},
 			},
 			wantAny: []string{
@@ -222,17 +199,13 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 		{
 			name:     "meta does nothing (no output)",
 			minLevel: slog.LevelDebug,
-			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Meta(ev)
+			call: func(l *StructuredLogger, e dto.RelayEventInterface) {
+				l.Meta(e)
 			},
-			event: dto.EmittedEvent{
-				Time:  fixedTime,
-				Level: dto.Meta,
-				Event: slogEvent{
-					msg: "meta-msg",
-					attrs: []slog.Attr{
-						slog.String("m", "1"),
-					},
+			event: slogEvent{
+				msg: "meta-msg",
+				attrs: []slog.Attr{
+					slog.String("m", "1"),
 				},
 			},
 			wantEmpty: true,
@@ -267,7 +240,6 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 					t.Fatalf("expected output to contain %q\noutput:\n%s", sub, out)
 				}
 			}
-
 			for _, sub := range tt.wantNone {
 				if strings.Contains(out, sub) {
 					t.Fatalf("expected output NOT to contain %q\noutput:\n%s", sub, out)
@@ -279,6 +251,13 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 
 func TestNewStructuredLogger_WiresHandlerLevel_Golden(t *testing.T) {
 	t.Parallel()
+
+	// NewStructuredLogger() writes to os.Stdout, so we can’t easily assert emitted
+	// text without capturing stdout. Instead, we assert the created logger has a
+	// handler with the expected Enabled behavior by using slog’s Enabled check
+	// via logger.Handler().Enabled(ctx, level).
+	//
+	// This avoids brittle text comparisons and doesn’t need stdout capture.
 
 	tests := []struct {
 		name     string
@@ -328,16 +307,16 @@ func TestNewStructuredLogger_WiresHandlerLevel_Golden(t *testing.T) {
 
 			s := NewStructuredLogger(&cfg)
 
-			gotOn := s.logger.Handler().Enabled(nil, tt.checkLvl)
+			gotOn := s.logger.Handler().Enabled(
+				// context.Background() not required here, but fine
+				// (we avoid importing context for a single call)
+				nil,
+				tt.checkLvl,
+			)
 
 			if gotOn != tt.wantOn {
-				t.Fatalf(
-					"enabled mismatch for %v (cfg=%s): want=%v got=%v",
-					tt.checkLvl,
-					tt.cfgLevel,
-					tt.wantOn,
-					gotOn,
-				)
+				t.Fatalf("enabled mismatch for %v (cfg=%s): want=%v got=%v",
+					tt.checkLvl, tt.cfgLevel, tt.wantOn, gotOn)
 			}
 		})
 	}

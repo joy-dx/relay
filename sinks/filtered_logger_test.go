@@ -4,10 +4,9 @@ package sinks
 import (
 	"bytes"
 	"testing"
-	"time"
 
-	"github.com/joy-dx/relay/v2/dto"
-	"github.com/joy-dx/relay/v2/events"
+	"github.com/joy-dx/relay/dto"
+	"github.com/joy-dx/relay/events"
 )
 
 // --- Golden-table tests -------------------------------------------------------
@@ -64,114 +63,102 @@ func TestNewFilteredLogger_BuildsTypeSet_Golden(t *testing.T) {
 func TestFilteredLoggerSink_LevelAndTypeFiltering_Golden(t *testing.T) {
 	t.Parallel()
 
-	fixedTime := time.Date(2026, 9, 9, 7, 0, 0, 0, time.UTC)
-
 	tests := []struct {
 		name       string
 		cfgLevel   dto.RelayLevel
 		allowed    []dto.EventRef
-		call       func(s *FilteredLoggerSink, ev dto.EmittedEvent)
+		call       func(s *FilteredLoggerSink, e dto.RelayEventInterface)
 		event      dto.RelayEventInterface
-		level      dto.RelayLevel
-		wantOutput string
+		wantOutput string // exact output (including newline) or "" for none
 	}{
 		{
 			name:     "debug prints only when level allows and type allowed",
 			cfgLevel: dto.Debug,
 			allowed:  []dto.EventRef{"cmd.log"},
-			call: func(s *FilteredLoggerSink, ev dto.EmittedEvent) {
-				s.Debug(ev)
+			call: func(s *FilteredLoggerSink, e dto.RelayEventInterface) {
+				s.Debug(e)
 			},
 			event:      basicEvent{ref: "cmd.log", msg: "hello"},
-			level:      dto.Debug,
 			wantOutput: "hello\n",
 		},
 		{
 			name:     "debug suppressed when configured at info",
 			cfgLevel: dto.Info,
 			allowed:  []dto.EventRef{"cmd.log"},
-			call: func(s *FilteredLoggerSink, ev dto.EmittedEvent) {
-				s.Debug(ev)
+			call: func(s *FilteredLoggerSink, e dto.RelayEventInterface) {
+				s.Debug(e)
 			},
 			event:      basicEvent{ref: "cmd.log", msg: "hello"},
-			level:      dto.Debug,
 			wantOutput: "",
 		},
 		{
 			name:     "debug suppressed when type not allowed",
 			cfgLevel: dto.Debug,
 			allowed:  []dto.EventRef{"cmd.log"},
-			call: func(s *FilteredLoggerSink, ev dto.EmittedEvent) {
-				s.Debug(ev)
+			call: func(s *FilteredLoggerSink, e dto.RelayEventInterface) {
+				s.Debug(e)
 			},
 			event:      basicEvent{ref: "relay.log", msg: "nope"},
-			level:      dto.Debug,
 			wantOutput: "",
 		},
 		{
 			name:     "info prints when level allows and type allowed",
 			cfgLevel: dto.Info,
 			allowed:  []dto.EventRef{"cmd.log"},
-			call: func(s *FilteredLoggerSink, ev dto.EmittedEvent) {
-				s.Info(ev)
+			call: func(s *FilteredLoggerSink, e dto.RelayEventInterface) {
+				s.Info(e)
 			},
 			event:      basicEvent{ref: "cmd.log", msg: "info-msg"},
-			level:      dto.Info,
 			wantOutput: "info-msg\n",
 		},
 		{
 			name:     "warn prints when level allows and type allowed",
 			cfgLevel: dto.Warn,
 			allowed:  []dto.EventRef{"cmd.log"},
-			call: func(s *FilteredLoggerSink, ev dto.EmittedEvent) {
-				s.Warn(ev)
+			call: func(s *FilteredLoggerSink, e dto.RelayEventInterface) {
+				s.Warn(e)
 			},
 			event:      basicEvent{ref: "cmd.log", msg: "warn-msg"},
-			level:      dto.Warn,
 			wantOutput: "warn-msg\n",
 		},
 		{
 			name:     "info suppressed when type not allowed",
 			cfgLevel: dto.Info,
 			allowed:  []dto.EventRef{"cmd.log"},
-			call: func(s *FilteredLoggerSink, ev dto.EmittedEvent) {
-				s.Info(ev)
+			call: func(s *FilteredLoggerSink, e dto.RelayEventInterface) {
+				s.Info(e)
 			},
 			event:      basicEvent{ref: "relay.log", msg: "nope"},
-			level:      dto.Info,
 			wantOutput: "",
 		},
 		{
 			name:     "warn suppressed when type not allowed",
 			cfgLevel: dto.Warn,
 			allowed:  []dto.EventRef{"cmd.log"},
-			call: func(s *FilteredLoggerSink, ev dto.EmittedEvent) {
-				s.Warn(ev)
+			call: func(s *FilteredLoggerSink, e dto.RelayEventInterface) {
+				s.Warn(e)
 			},
 			event:      basicEvent{ref: "relay.log", msg: "nope"},
-			level:      dto.Warn,
 			wantOutput: "",
 		},
 		{
 			name:     "error always prints regardless of allowed types",
 			cfgLevel: dto.Fatal,
 			allowed:  []dto.EventRef{"cmd.log"},
-			call: func(s *FilteredLoggerSink, ev dto.EmittedEvent) {
-				s.Error(ev)
+			call: func(s *FilteredLoggerSink, e dto.RelayEventInterface) {
+				s.Error(e)
 			},
 			event:      basicEvent{ref: "relay.log", msg: "err"},
-			level:      dto.Error,
 			wantOutput: "err\n",
 		},
 		{
 			name:     "fatal always prints regardless of allowed types",
 			cfgLevel: dto.Fatal,
 			allowed:  []dto.EventRef{"cmd.log"},
-			call: func(s *FilteredLoggerSink, ev dto.EmittedEvent) {
-				s.Fatal(ev)
+			call: func(s *FilteredLoggerSink, e dto.RelayEventInterface) {
+				s.Fatal(e)
 			},
 			event:      basicEvent{ref: "relay.log", msg: "fatal"},
-			level:      dto.Fatal,
 			wantOutput: "fatal\n",
 		},
 	}
@@ -180,7 +167,6 @@ func TestFilteredLoggerSink_LevelAndTypeFiltering_Golden(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
 			var buf bytes.Buffer
 
 			cfg := &FilteredLoggerConfig{
@@ -190,15 +176,9 @@ func TestFilteredLoggerSink_LevelAndTypeFiltering_Golden(t *testing.T) {
 			}
 			s := NewFilteredLogger(cfg)
 
-			ev := dto.EmittedEvent{
-				Time:  fixedTime,
-				Level: tt.level,
-				Event: tt.event,
-			}
-
-			tt.call(s, ev)
-
+			tt.call(s, tt.event)
 			out := buf.String()
+
 			if out != tt.wantOutput {
 				t.Fatalf("output mismatch\nwant: %q\ngot:  %q", tt.wantOutput, out)
 			}
@@ -208,8 +188,6 @@ func TestFilteredLoggerSink_LevelAndTypeFiltering_Golden(t *testing.T) {
 
 func TestFilteredLoggerSink_Meta_Golden(t *testing.T) {
 	t.Parallel()
-
-	fixedTime := time.Date(2026, 9, 9, 7, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name       string
@@ -231,6 +209,7 @@ func TestFilteredLoggerSink_Meta_Golden(t *testing.T) {
 				MetaType: "section",
 				Text:     "My Section",
 			},
+			// exact string is: "\n## My Section\n\n"
 			wantSubstr: "## My Section",
 		},
 		{
@@ -255,7 +234,6 @@ func TestFilteredLoggerSink_Meta_Golden(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
 			var buf bytes.Buffer
 
 			cfg := &FilteredLoggerConfig{
@@ -265,14 +243,7 @@ func TestFilteredLoggerSink_Meta_Golden(t *testing.T) {
 			}
 			s := NewFilteredLogger(cfg)
 
-			ev := dto.EmittedEvent{
-				Time:  fixedTime,
-				Level: dto.Meta,
-				Event: tt.event,
-			}
-
-			s.Meta(ev)
-
+			s.Meta(tt.event)
 			out := buf.String()
 
 			if tt.wantEmpty {
@@ -282,13 +253,9 @@ func TestFilteredLoggerSink_Meta_Golden(t *testing.T) {
 				return
 			}
 
-			if tt.wantSubstr != "" &&
-				!bytes.Contains([]byte(out), []byte(tt.wantSubstr)) {
-				t.Fatalf(
-					"expected output to contain %q\noutput:\n%s",
-					tt.wantSubstr,
-					out,
-				)
+			if tt.wantSubstr != "" && !bytes.Contains([]byte(out), []byte(tt.wantSubstr)) {
+				t.Fatalf("expected output to contain %q\noutput:\n%s",
+					tt.wantSubstr, out)
 			}
 		})
 	}

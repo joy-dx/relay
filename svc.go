@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/joy-dx/relay/v2/config"
-	"github.com/joy-dx/relay/v2/dto"
+	"github.com/joy-dx/relay/config"
+	"github.com/joy-dx/relay/dto"
 )
 
 // RelaySvc Is a pseudo logger interface that allows for rich structs to be included alongside messsages. it is

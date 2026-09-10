@@ -1,4 +1,4 @@
-module github.com/joy-dx/relay/v2
+module github.com/joy-dx/relay
 
 go 1.25.5
 

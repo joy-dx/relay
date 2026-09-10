@@ -3,7 +3,7 @@ package sinks
 import (
 	"io"
 
-	"github.com/joy-dx/relay/v2/dto"
+	"github.com/joy-dx/relay/dto"
 )
 
 type FilteredLoggerConfig struct {

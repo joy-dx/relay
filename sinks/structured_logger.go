@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/joy-dx/relay/v2/dto"
+	"github.com/joy-dx/relay/dto"
 )
 
 const StructuredLoggerRef = "structured"
@@ -46,23 +46,23 @@ func convertLevel(l dto.RelayLevel) slog.Level {
 	}
 }
 
-func (s *StructuredLogger) Debug(ev dto.EmittedEvent) {
-	s.logger.LogAttrs(context.Background(), slog.LevelDebug, ev.Event.Message(), ev.Event.ToSlog()...)
+func (s *StructuredLogger) Debug(ev dto.RelayEventInterface) {
+	s.logger.LogAttrs(context.Background(), slog.LevelDebug, ev.Message(), ev.ToSlog()...)
 }
-func (s *StructuredLogger) Info(ev dto.EmittedEvent) {
-	s.logger.LogAttrs(context.Background(), slog.LevelInfo, ev.Event.Message(), ev.Event.ToSlog()...)
+func (s *StructuredLogger) Info(ev dto.RelayEventInterface) {
+	s.logger.LogAttrs(context.Background(), slog.LevelInfo, ev.Message(), ev.ToSlog()...)
 }
-func (s *StructuredLogger) Warn(ev dto.EmittedEvent) {
-	s.logger.LogAttrs(context.Background(), slog.LevelWarn, ev.Event.Message(), ev.Event.ToSlog()...)
+func (s *StructuredLogger) Warn(ev dto.RelayEventInterface) {
+	s.logger.LogAttrs(context.Background(), slog.LevelWarn, ev.Message(), ev.ToSlog()...)
 }
-func (s *StructuredLogger) Error(ev dto.EmittedEvent) {
-	s.logger.LogAttrs(context.Background(), slog.LevelError, ev.Event.Message(), ev.Event.ToSlog()...)
+func (s *StructuredLogger) Error(ev dto.RelayEventInterface) {
+	s.logger.LogAttrs(context.Background(), slog.LevelError, ev.Message(), ev.ToSlog()...)
 }
-func (s *StructuredLogger) Fatal(ev dto.EmittedEvent) {
-	s.logger.LogAttrs(context.Background(), slog.LevelError, "FATAL", ev.Event.ToSlog()...)
+func (s *StructuredLogger) Fatal(ev dto.RelayEventInterface) {
+	s.logger.LogAttrs(context.Background(), slog.LevelError, "FATAL", ev.ToSlog()...)
 }
 
-func (s *StructuredLogger) Meta(ev dto.EmittedEvent) {
+func (s *StructuredLogger) Meta(ev dto.RelayEventInterface) {
 
 }
 

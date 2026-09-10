@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joy-dx/relay/v2/config"
-	"github.com/joy-dx/relay/v2/dto"
+	"github.com/joy-dx/relay/config"
+	"github.com/joy-dx/relay/dto"
 )
 
 // --- Test fixtures (golden table pattern) ------------------------------------

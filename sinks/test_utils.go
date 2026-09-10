@@ -3,7 +3,7 @@ package sinks
 import (
 	"log/slog"
 
-	"github.com/joy-dx/relay/v2/dto"
+	"github.com/joy-dx/relay/dto"
 )
 
 type basicEvent struct {
