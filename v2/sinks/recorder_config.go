@@ -7,6 +7,8 @@ import (
 const RECORDER_DEFAULT_SEGMENT_SIZE = 512
 const RECORDER_DEFAULT_INPUT_BUFFER_SIZE = 1024
 
+type RecorderFilter func(dto.EmittedEvent) bool
+
 type RecorderConfig struct {
 	Level           dto.RelayLevel     `json:"level" yaml:"level"`
 	SegmentSize     int                `json:"segment_size" yaml:"segment_size"`
@@ -16,6 +18,7 @@ type RecorderConfig struct {
 	CloneOnRecord   bool               `json:"clone_on_record,omitempty" yaml:"clone_on_record,omitempty"`
 	ChannelsAllowed []dto.EventChannel `json:"channels_allowed,omitempty"`
 	EventsAllowed   []dto.EventRef     `json:"events_allowed,omitempty"`
+	Filter          RecorderFilter     `json:"-" yaml:"-"`
 }
 
 func DefaultRecorderConfig() RecorderConfig {
@@ -65,5 +68,12 @@ func (c *RecorderConfig) WithBlockOnFull(truthy bool) *RecorderConfig {
 
 func (c *RecorderConfig) WithCloneOnRecord(truthy bool) *RecorderConfig {
 	c.CloneOnRecord = truthy
+	return c
+}
+
+func (c *RecorderConfig) WithFilterFunction(
+	filter RecorderFilter,
+) *RecorderConfig {
+	c.Filter = filter
 	return c
 }

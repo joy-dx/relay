@@ -122,6 +122,10 @@ func (s *RecorderSink) record(level dto.RelayLevel, ev dto.EmittedEvent) {
 		}
 	}
 
+	if s.cfg.Filter != nil && !s.cfg.Filter(ev) {
+		return
+	}
+
 	preppedEvent := s.prepareEvent(ev)
 
 	if s.cfg.BlockOnFull {
