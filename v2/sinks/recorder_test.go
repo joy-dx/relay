@@ -14,8 +14,9 @@ import (
 type testEventRef string
 
 type testEvent struct {
-	typ string
-	msg string
+	channel dto.EventChannel
+	typ     string
+	msg     string
 }
 
 func (e testEvent) Message() string {
@@ -23,7 +24,10 @@ func (e testEvent) Message() string {
 }
 
 func (e testEvent) RelayChannel() dto.EventChannel {
-	return "test"
+	if e.channel == "" {
+		return "test"
+	}
+	return e.channel
 }
 
 func (e testEvent) RelayType() dto.EventRef {
@@ -403,6 +407,286 @@ func TestRecorderSink_Golden(t *testing.T) {
 			},
 			wantEvents: []goldenRecordedEvent{
 				{level: dto.Info, typ: "clone", msg: "original"},
+			},
+			wantRecorded:     1,
+			wantDroppedExact: &exactZero,
+			wantSegments:     1,
+			wantEventCount:   1,
+		},
+		{
+			name: "wildcard_filters_allow_all_events_and_channels",
+			cfg: &RecorderConfig{
+				Level:           dto.Debug,
+				SegmentSize:     8,
+				InputBuffer:     16,
+				BlockOnFull:     true,
+				EventsAllowed:   []dto.EventRef{"*"},
+				ChannelsAllowed: []dto.EventChannel{"*"},
+			},
+			actions: []recorderAction{
+				{
+					name: "events from multiple channels",
+					run: func(t *testing.T, s *RecorderSink) {
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "audit",
+								typ:     "user.created",
+								msg:     "created",
+							},
+						})
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "metrics",
+								typ:     "request.counted",
+								msg:     "counted",
+							},
+						})
+					},
+				},
+			},
+			wantEvents: []goldenRecordedEvent{
+				{
+					level: dto.Info,
+					typ:   "user.created",
+					msg:   "created",
+				},
+				{
+					level: dto.Info,
+					typ:   "request.counted",
+					msg:   "counted",
+				},
+			},
+			wantRecorded:     2,
+			wantDroppedExact: &exactZero,
+			wantSegments:     1,
+			wantEventCount:   2,
+		},
+		{
+			name: "event_filter_records_only_allowed_event_types",
+			cfg: &RecorderConfig{
+				Level:         dto.Debug,
+				SegmentSize:   8,
+				InputBuffer:   16,
+				BlockOnFull:   true,
+				EventsAllowed: []dto.EventRef{"user.created", "user.deleted"},
+			},
+			actions: []recorderAction{
+				{
+					name: "event allow-list",
+					run: func(t *testing.T, s *RecorderSink) {
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "audit",
+								typ:     "user.created",
+								msg:     "created",
+							},
+						})
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "audit",
+								typ:     "user.updated",
+								msg:     "updated",
+							},
+						})
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "audit",
+								typ:     "user.deleted",
+								msg:     "deleted",
+							},
+						})
+					},
+				},
+			},
+			wantEvents: []goldenRecordedEvent{
+				{
+					level: dto.Info,
+					typ:   "user.created",
+					msg:   "created",
+				},
+				{
+					level: dto.Info,
+					typ:   "user.deleted",
+					msg:   "deleted",
+				},
+			},
+			wantRecorded:     2,
+			wantDroppedExact: &exactZero,
+			wantSegments:     1,
+			wantEventCount:   2,
+		},
+		{
+			name: "channel_filter_records_only_allowed_channels",
+			cfg: &RecorderConfig{
+				Level:           dto.Debug,
+				SegmentSize:     8,
+				InputBuffer:     16,
+				BlockOnFull:     true,
+				ChannelsAllowed: []dto.EventChannel{"audit", "security"},
+			},
+			actions: []recorderAction{
+				{
+					name: "channel allow-list",
+					run: func(t *testing.T, s *RecorderSink) {
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "audit",
+								typ:     "audit.event",
+								msg:     "audit",
+							},
+						})
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "metrics",
+								typ:     "metrics.event",
+								msg:     "metrics",
+							},
+						})
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "security",
+								typ:     "security.event",
+								msg:     "security",
+							},
+						})
+					},
+				},
+			},
+			wantEvents: []goldenRecordedEvent{
+				{
+					level: dto.Info,
+					typ:   "audit.event",
+					msg:   "audit",
+				},
+				{
+					level: dto.Info,
+					typ:   "security.event",
+					msg:   "security",
+				},
+			},
+			wantRecorded:     2,
+			wantDroppedExact: &exactZero,
+			wantSegments:     1,
+			wantEventCount:   2,
+		},
+		{
+			name: "event_and_channel_filters_are_applied_together",
+			cfg: &RecorderConfig{
+				Level:           dto.Debug,
+				SegmentSize:     8,
+				InputBuffer:     16,
+				BlockOnFull:     true,
+				EventsAllowed:   []dto.EventRef{"user.created", "user.deleted"},
+				ChannelsAllowed: []dto.EventChannel{"audit"},
+			},
+			actions: []recorderAction{
+				{
+					name: "combined allow-lists",
+					run: func(t *testing.T, s *RecorderSink) {
+						// Allowed event and allowed channel: recorded.
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "audit",
+								typ:     "user.created",
+								msg:     "created",
+							},
+						})
+
+						// Allowed event, disallowed channel: filtered.
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "security",
+								typ:     "user.created",
+								msg:     "created elsewhere",
+							},
+						})
+
+						// Disallowed event, allowed channel: filtered.
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "audit",
+								typ:     "user.updated",
+								msg:     "updated",
+							},
+						})
+
+						// Disallowed event and channel: filtered.
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "metrics",
+								typ:     "request.counted",
+								msg:     "counted",
+							},
+						})
+					},
+				},
+			},
+			wantEvents: []goldenRecordedEvent{
+				{
+					level: dto.Info,
+					typ:   "user.created",
+					msg:   "created",
+				},
+			},
+			wantRecorded:     1,
+			wantDroppedExact: &exactZero,
+			wantSegments:     1,
+			wantEventCount:   1,
+		},
+		{
+			name: "filtered_events_do_not_increment_recorded_or_dropped_counts",
+			cfg: &RecorderConfig{
+				Level:           dto.Debug,
+				SegmentSize:     8,
+				InputBuffer:     16,
+				BlockOnFull:     true,
+				EventsAllowed:   []dto.EventRef{"allowed"},
+				ChannelsAllowed: []dto.EventChannel{"allowed-channel"},
+			},
+			actions: []recorderAction{
+				{
+					name: "filtered events",
+					run: func(t *testing.T, s *RecorderSink) {
+						for i := 0; i < 10; i++ {
+							s.Info(dto.EmittedEvent{
+								Level: dto.Info,
+								Event: testEvent{
+									channel: "other-channel",
+									typ:     "other",
+									msg:     "filtered",
+								},
+							})
+						}
+
+						s.Info(dto.EmittedEvent{
+							Level: dto.Info,
+							Event: testEvent{
+								channel: "allowed-channel",
+								typ:     "allowed",
+								msg:     "recorded",
+							},
+						})
+					},
+				},
+			},
+			wantEvents: []goldenRecordedEvent{
+				{
+					level: dto.Info,
+					typ:   "allowed",
+					msg:   "recorded",
+				},
 			},
 			wantRecorded:     1,
 			wantDroppedExact: &exactZero,
