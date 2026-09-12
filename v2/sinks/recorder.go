@@ -16,9 +16,11 @@ var ErrRecorderClosed = errors.New("recorder sink is closed")
 type RecorderSink struct {
 	cfg *RecorderConfig
 
-	input  chan dto.EmittedEvent
-	wg     sync.WaitGroup
-	closed atomic.Bool
+	input                chan dto.EmittedEvent
+	wg                   sync.WaitGroup
+	closed               atomic.Bool
+	relayChannelsAllowed map[dto.EventChannel]struct{}
+	relayEventsAllowed   map[dto.EventRef]struct{}
 
 	mu       sync.RWMutex
 	segments [][]dto.EmittedEvent
@@ -31,17 +33,29 @@ func NewRecorderSink(cfg *RecorderConfig) *RecorderSink {
 	if cfg == nil {
 		cfg = &RecorderConfig{}
 	}
+
+	eventsFilterSet := make(map[dto.EventRef]struct{}, len(cfg.EventsAllowed))
+	for _, t := range cfg.EventsAllowed {
+		eventsFilterSet[t] = struct{}{}
+	}
+	channelsFilterSet := make(map[dto.EventChannel]struct{}, len(cfg.ChannelsAllowed))
+	for _, t := range cfg.ChannelsAllowed {
+		channelsFilterSet[t] = struct{}{}
+	}
+
 	if cfg.SegmentSize <= 0 {
-		cfg.SegmentSize = 512
+		cfg.SegmentSize = RECORDER_DEFAULT_SEGMENT_SIZE
 	}
 	if cfg.InputBuffer <= 0 {
-		cfg.InputBuffer = 1024
+		cfg.InputBuffer = RECORDER_DEFAULT_INPUT_BUFFER_SIZE
 	}
 
 	s := &RecorderSink{
-		cfg:      cfg,
-		input:    make(chan dto.EmittedEvent, cfg.InputBuffer),
-		segments: make([][]dto.EmittedEvent, 0, 8),
+		cfg:                  cfg,
+		input:                make(chan dto.EmittedEvent, cfg.InputBuffer),
+		relayChannelsAllowed: channelsFilterSet,
+		relayEventsAllowed:   eventsFilterSet,
+		segments:             make([][]dto.EmittedEvent, 0, 8),
 	}
 
 	s.wg.Add(1)
@@ -90,6 +104,22 @@ func (s *RecorderSink) Meta(ev dto.EmittedEvent) {
 func (s *RecorderSink) record(level dto.RelayLevel, ev dto.EmittedEvent) {
 	if s.closed.Load() {
 		return
+	}
+
+	if len(s.relayEventsAllowed) > 0 {
+		if _, allEventsAllowed := s.relayEventsAllowed["*"]; !allEventsAllowed {
+			if _, ok := s.relayEventsAllowed[ev.Event.RelayType()]; !ok {
+				return
+			}
+		}
+	}
+
+	if len(s.relayChannelsAllowed) > 0 {
+		if _, allChannelsAllowed := s.relayChannelsAllowed["*"]; !allChannelsAllowed {
+			if _, ok := s.relayChannelsAllowed[ev.Event.RelayChannel()]; !ok {
+				return
+			}
+		}
 	}
 
 	preppedEvent := s.prepareEvent(ev)
