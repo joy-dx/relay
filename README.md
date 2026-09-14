@@ -22,6 +22,7 @@ This pattern makes it easy to:
 - `relay.Debug(event)`
 - `relay.Fatal(event)` (emits to all sinks, then terminates the process)
 - `relay.Meta(event)` (special “developer-defined” meta events for CLI UX, sections, status, etc)
+- `relay.Emit(level, event)` (custom level)
 
 ### Events
 An event is any value implementing:
@@ -50,9 +51,9 @@ Before dispatching to sinks, RelaySvc wraps the event in an envelope:
 
 ```go
 type EmittedEvent struct {
-Time  time.Time
-Level RelayLevel
-Event RelayEventInterface
+  Time  time.Time
+  Level RelayLevel
+  Event RelayEventInterface
 }
 ```
 
@@ -72,16 +73,11 @@ A sink is any implementation of:
 type RelaySinkInterface interface {
 	Ref() string
 	Close() error
-	Debug(data RelayEventInterface)
-	Info(data RelayEventInterface)
-	Warn(data RelayEventInterface)
-	Error(data RelayEventInterface)
-	Fatal(data RelayEventInterface)
-	Meta(data RelayEventInterface)
+	Emit(event EmittedEvent)
 }
 ```
 
-Sinks decide how and where the event is output (stdout, structured slog, filtered stdout, etc).
+Sinks decide how and where the event is output (stdout, structured slog, etc).
 
 ### Fatal behavior
 
@@ -273,33 +269,6 @@ func (e UserLogin) ToSlog() []slog.Attr {
 r.Info(UserLogin{UserID: "123"})
 ```
 
-### 3) FilteredLoggerSink (`ref: "filtered"`)
-
-**Best for:** keeping terminal noise down by only printing events whose `RelayType()` is explicitly allowed.
-
-**Behavior:**
-- `Debug/Info/Warn` print only if BOTH:
-    1. level gating allows it, AND
-    2. the event’s `RelayType()` exists in `cfg.RelayTypes`
-- `Error/Fatal` always print the message (not filtered)
-- `Meta` formats similarly to SimpleLoggerSink
-
-**Example:**
-
-```go
-cfg := &sinks.FilteredLoggerConfig{
-	Level:      dto.Info,
-	RelayTypes: []dto.EventRef{"cmd.log"},
-}
-r.RegisterSink(sinks.NewFilteredLogger(cfg))
-
-// Will print (type allowed)
-r.Info(events.RlyMeta{MetaType: "section", Text: "CLI Output"})
-r.Info(events.RlyLog{Msg: "this depends on RelayType used by the event"})
-
-// Will be suppressed at Info/Warn/Debug if type not in RelayTypes
-```
-
 ### 3) FileLoggerSink (`ref: "file"`)
 
 **Best for**: persistent log output to disk (CLI tools, background jobs, desktop apps).
@@ -464,6 +433,75 @@ Sinks use `GetLogLevelIndex(cfg.Level, dto.Levels)` and compare indices to decid
 
 ---
 
+## Event Filtering
+
+Each sink can use the shared EventFilterConfig to select which events it
+receives. Filters are applied consistently using the standard event envelope,
+based on:
+
+* level: minimum relay level to emit
+* channels_allowed: event channels to accept
+* events_allowed: event types to accept
+
+A sink can then be configured without implementing its own filtering rules:
+
+```go
+cfg := NewFileLoggerConfig("events.log").
+	WithEventFilterConfig(EventFilterConfig{
+		Level: dto.Info,
+		ChannelsAllowed: []dto.EventChannel{
+			dto.ChannelApplication,
+		},
+		EventsAllowed: []dto.EventRef{
+			dto.EventUserCreated,
+			dto.EventUserUpdated,
+		},
+	})
+```
+
+Use "*" in either allow list to accept all values for that category. An empty
+list also means that no filter is applied for that category.
+
+When generating custom sinks or overriding the Emit function, here is an example of processing
+
+```go
+func (s *SimpleLoggerSink) Emit(ev dto.EmittedEvent) {
+	switch ev.Level {
+	case dto.Debug, dto.Info, dto.Warn:
+		if !s.eventFilter.IsLevelEnabled(ev.Level) ||
+			!s.eventFilter.IsChannelAllowed(ev.Event.RelayChannel()) ||
+			!s.eventFilter.IsEventAllowed(ev.Event.RelayType()) {
+			return
+		}
+	case dto.Error:
+		// Errors are always emitted.
+	case dto.Fatal:
+		// Fatal events are always emitted.
+	case dto.Meta:
+		s.Meta(ev)
+		return
+	}
+
+	prefix := ""
+	switch ev.Level {
+	case dto.Warn:
+		prefix = "WARN "
+	case dto.Error:
+		prefix = "ERROR "
+	case dto.Fatal:
+		prefix = "FATAL "
+	}
+
+	fmt.Fprintf(
+		s.writer,
+		"%s: %s\n",
+		PadRight(prefix+string(ev.Event.RelayType()), s.padding),
+		ev.Event.Message(),
+	)
+}
+```
+
+---
 ## Creating a custom event
 
 Any struct can be an event by implementing `dto.RelayEventInterface`.

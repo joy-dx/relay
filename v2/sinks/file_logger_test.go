@@ -33,7 +33,7 @@ func TestFileLoggerSink_Golden(t *testing.T) {
 			name:  "debug suppressed at info",
 			level: dto.Info,
 			call: func(s *FileLoggerSink) {
-				s.Debug(dto.EmittedEvent{
+				s.Emit(dto.EmittedEvent{
 					Time:  time.Now(),
 					Level: dto.Debug,
 					Event: fileMsgEvent{msg: "debug-msg"},
@@ -45,7 +45,7 @@ func TestFileLoggerSink_Golden(t *testing.T) {
 			name:  "info printed at info",
 			level: dto.Info,
 			call: func(s *FileLoggerSink) {
-				s.Info(dto.EmittedEvent{
+				s.Emit(dto.EmittedEvent{
 					Time:  time.Now(),
 					Level: dto.Info,
 					Event: fileMsgEvent{msg: "info-msg"},
@@ -55,51 +55,39 @@ func TestFileLoggerSink_Golden(t *testing.T) {
 		},
 		{
 			name:  "warn printed at info",
-			level: dto.Info,
+			level: dto.Warn,
 			call: func(s *FileLoggerSink) {
-				s.Warn(dto.EmittedEvent{
+				s.Emit(dto.EmittedEvent{
 					Time:  time.Now(),
 					Level: dto.Warn,
 					Event: fileMsgEvent{msg: "warn-msg"},
 				})
 			},
-			wantOutput: "relay.log: warn-msg\n",
+			wantOutput: "WARN relay.log: warn-msg\n",
 		},
 		{
 			name:  "error printed when enabled",
 			level: dto.Error,
 			call: func(s *FileLoggerSink) {
-				s.Error(dto.EmittedEvent{
+				s.Emit(dto.EmittedEvent{
 					Time:  time.Now(),
 					Level: dto.Error,
 					Event: fileMsgEvent{msg: "error-msg"},
 				})
 			},
-			wantOutput: "ERROR: error-msg\n",
+			wantOutput: "ERROR relay.log: error-msg\n",
 		},
 		{
 			name:  "fatal printed when enabled",
 			level: dto.Fatal,
 			call: func(s *FileLoggerSink) {
-				s.Fatal(dto.EmittedEvent{
+				s.Emit(dto.EmittedEvent{
 					Time:  time.Now(),
 					Level: dto.Fatal,
 					Event: fileMsgEvent{msg: "fatal-msg"},
 				})
 			},
-			wantOutput: "FATAL: fatal-msg\n",
-		},
-		{
-			name:  "meta always prints",
-			level: dto.Fatal,
-			call: func(s *FileLoggerSink) {
-				s.Meta(dto.EmittedEvent{
-					Time:  time.Now(),
-					Level: dto.Meta,
-					Event: fileMsgEvent{msg: "meta-msg"},
-				})
-			},
-			wantOutput: "META: meta-msg\n",
+			wantOutput: "FATAL relay.log: fatal-msg\n",
 		},
 	}
 
@@ -110,10 +98,11 @@ func TestFileLoggerSink_Golden(t *testing.T) {
 
 			tmpDir := t.TempDir()
 			logPath := filepath.Join(tmpDir, "test.log")
-
+			eventFilterCfg := DefaultEventFilterConfig()
+			eventFilterCfg.WithLevel(tt.level)
 			cfg := DefaultFileLoggerConfig()
 			cfg.WithFilePath(logPath).
-				WithLevel(tt.level).
+				WithEventFilterConfig(eventFilterCfg).
 				WithKeyPadding(0)
 
 			sink, err := NewFileLogger(&cfg)
@@ -178,10 +167,11 @@ func TestFileLoggerSink_Appends(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	logPath := filepath.Join(tmpDir, "append.log")
-
+	eventFilterCfg := DefaultEventFilterConfig()
+	eventFilterCfg.WithLevel(dto.Debug)
 	cfg := DefaultFileLoggerConfig()
 	cfg.WithFilePath(logPath).
-		WithLevel(dto.Debug).
+		WithEventFilterConfig(eventFilterCfg).
 		WithKeyPadding(0)
 
 	sink, err := NewFileLogger(&cfg)
@@ -189,12 +179,12 @@ func TestFileLoggerSink_Appends(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	sink.Info(dto.EmittedEvent{
+	sink.Emit(dto.EmittedEvent{
 		Time:  time.Now(),
 		Level: dto.Info,
 		Event: fileMsgEvent{msg: "first"},
 	})
-	sink.Info(dto.EmittedEvent{
+	sink.Emit(dto.EmittedEvent{
 		Time:  time.Now(),
 		Level: dto.Info,
 		Event: fileMsgEvent{msg: "second"},

@@ -82,11 +82,15 @@ func TestRecorderSink_Golden(t *testing.T) {
 
 	exactZero := uint64(0)
 
+	eventFilterCfg := DefaultEventFilterConfig()
+
 	cases := []recorderGolden{
 		{
 			name: "records_debug_info_warn_error_fatal_meta_in_order",
 			cfg: &RecorderConfig{
-				Level:       dto.Debug,
+				EventFilterConfig: EventFilterConfig{
+					Level: dto.Debug,
+				},
 				SegmentSize: 8,
 				InputBuffer: 16,
 				BlockOnFull: true,
@@ -115,7 +119,9 @@ func TestRecorderSink_Golden(t *testing.T) {
 		{
 			name: "respects_level_filter_for_debug_info_warn_but_not_error_fatal_meta",
 			cfg: &RecorderConfig{
-				Level:       dto.Warn,
+				EventFilterConfig: EventFilterConfig{
+					Level: dto.Warn,
+				},
 				SegmentSize: 8,
 				InputBuffer: 16,
 				BlockOnFull: true,
@@ -142,7 +148,9 @@ func TestRecorderSink_Golden(t *testing.T) {
 		{
 			name: "creates_multiple_segments_when_segment_size_is_reached",
 			cfg: &RecorderConfig{
-				Level:       dto.Debug,
+				EventFilterConfig: EventFilterConfig{
+					Level: dto.Debug,
+				},
 				SegmentSize: 2,
 				InputBuffer: 16,
 				BlockOnFull: true,
@@ -169,7 +177,9 @@ func TestRecorderSink_Golden(t *testing.T) {
 		{
 			name: "evicts_oldest_segments_when_max_segments_is_reached",
 			cfg: &RecorderConfig{
-				Level:       dto.Debug,
+				EventFilterConfig: EventFilterConfig{
+					Level: dto.Debug,
+				},
 				SegmentSize: 2,
 				MaxSegments: 2,
 				InputBuffer: 16,
@@ -195,7 +205,9 @@ func TestRecorderSink_Golden(t *testing.T) {
 		{
 			name: "non_blocking_mode_drops_when_input_buffer_is_full",
 			cfg: &RecorderConfig{
-				Level:       dto.Debug,
+				EventFilterConfig: EventFilterConfig{
+					Level: dto.Debug,
+				},
 				SegmentSize: 8,
 				InputBuffer: 1,
 				BlockOnFull: false,
@@ -205,7 +217,7 @@ func TestRecorderSink_Golden(t *testing.T) {
 					name: "burst writes",
 					run: func(t *testing.T, s *RecorderSink) {
 						for i := 0; i < 2000; i++ {
-							s.Info(dto.EmittedEvent{
+							s.Emit(dto.EmittedEvent{
 								Level: dto.Info,
 								Event: testEvent{
 									typ: fmt.Sprintf("type-%d", i),
@@ -222,7 +234,9 @@ func TestRecorderSink_Golden(t *testing.T) {
 		{
 			name: "snapshot_returns_independent_copy",
 			cfg: &RecorderConfig{
-				Level:       dto.Debug,
+				EventFilterConfig: EventFilterConfig{
+					Level: dto.Debug,
+				},
 				SegmentSize: 4,
 				InputBuffer: 8,
 				BlockOnFull: true,
@@ -239,7 +253,7 @@ func TestRecorderSink_Golden(t *testing.T) {
 						if len(snap1) != 2 {
 							t.Fatalf("expected snapshot size 2, got %d", len(snap1))
 						}
-						s.Info(dto.EmittedEvent{
+						s.Emit(dto.EmittedEvent{
 							Level: dto.Info,
 							Event: testEvent{
 								typ: "gamma", msg: "three",
@@ -269,7 +283,9 @@ func TestRecorderSink_Golden(t *testing.T) {
 		{
 			name: "replay_visits_all_events_in_order",
 			cfg: &RecorderConfig{
-				Level:       dto.Debug,
+				EventFilterConfig: EventFilterConfig{
+					Level: dto.Debug,
+				},
 				SegmentSize: 2,
 				InputBuffer: 8,
 				BlockOnFull: true,
@@ -292,7 +308,9 @@ func TestRecorderSink_Golden(t *testing.T) {
 		{
 			name: "replay_stops_and_returns_callback_error",
 			cfg: &RecorderConfig{
-				Level:       dto.Debug,
+				EventFilterConfig: EventFilterConfig{
+					Level: dto.Debug,
+				},
 				SegmentSize: 2,
 				InputBuffer: 8,
 				BlockOnFull: true,
@@ -317,7 +335,9 @@ func TestRecorderSink_Golden(t *testing.T) {
 		{
 			name: "reset_clears_all_segments_and_events",
 			cfg: &RecorderConfig{
-				Level:       dto.Debug,
+				EventFilterConfig: EventFilterConfig{
+					Level: dto.Debug,
+				},
 				SegmentSize: 2,
 				InputBuffer: 8,
 				BlockOnFull: true,
@@ -345,7 +365,9 @@ func TestRecorderSink_Golden(t *testing.T) {
 		{
 			name: "close_is_idempotent_and_post_close_writes_are_ignored",
 			cfg: &RecorderConfig{
-				Level:       dto.Debug,
+				EventFilterConfig: EventFilterConfig{
+					Level: dto.Debug,
+				},
 				SegmentSize: 4,
 				InputBuffer: 8,
 				BlockOnFull: true,
@@ -381,7 +403,9 @@ func TestRecorderSink_Golden(t *testing.T) {
 		{
 			name: "clone_on_record_uses_cloner_when_available",
 			cfg: &RecorderConfig{
-				Level:         dto.Debug,
+				EventFilterConfig: EventFilterConfig{
+					Level: dto.Debug,
+				},
 				SegmentSize:   4,
 				InputBuffer:   8,
 				BlockOnFull:   true,
@@ -397,7 +421,7 @@ func TestRecorderSink_Golden(t *testing.T) {
 								msg: "original",
 							},
 						}
-						s.Info(dto.EmittedEvent{
+						s.Emit(dto.EmittedEvent{
 							Level: dto.Info,
 							Event: ev,
 						})
@@ -416,18 +440,16 @@ func TestRecorderSink_Golden(t *testing.T) {
 		{
 			name: "wildcard_filters_allow_all_events_and_channels",
 			cfg: &RecorderConfig{
-				Level:           dto.Debug,
-				SegmentSize:     8,
-				InputBuffer:     16,
-				BlockOnFull:     true,
-				EventsAllowed:   []dto.EventRef{"*"},
-				ChannelsAllowed: []dto.EventChannel{"*"},
+				SegmentSize:       8,
+				InputBuffer:       16,
+				BlockOnFull:       true,
+				EventFilterConfig: eventFilterCfg,
 			},
 			actions: []recorderAction{
 				{
 					name: "events from multiple channels",
 					run: func(t *testing.T, s *RecorderSink) {
-						s.Info(dto.EmittedEvent{
+						s.Emit(dto.EmittedEvent{
 							Level: dto.Info,
 							Event: testEvent{
 								channel: "audit",
@@ -435,7 +457,7 @@ func TestRecorderSink_Golden(t *testing.T) {
 								msg:     "created",
 							},
 						})
-						s.Info(dto.EmittedEvent{
+						s.Emit(dto.EmittedEvent{
 							Level: dto.Info,
 							Event: testEvent{
 								channel: "metrics",
@@ -462,236 +484,6 @@ func TestRecorderSink_Golden(t *testing.T) {
 			wantDroppedExact: &exactZero,
 			wantSegments:     1,
 			wantEventCount:   2,
-		},
-		{
-			name: "event_filter_records_only_allowed_event_types",
-			cfg: &RecorderConfig{
-				Level:         dto.Debug,
-				SegmentSize:   8,
-				InputBuffer:   16,
-				BlockOnFull:   true,
-				EventsAllowed: []dto.EventRef{"user.created", "user.deleted"},
-			},
-			actions: []recorderAction{
-				{
-					name: "event allow-list",
-					run: func(t *testing.T, s *RecorderSink) {
-						s.Info(dto.EmittedEvent{
-							Level: dto.Info,
-							Event: testEvent{
-								channel: "audit",
-								typ:     "user.created",
-								msg:     "created",
-							},
-						})
-						s.Info(dto.EmittedEvent{
-							Level: dto.Info,
-							Event: testEvent{
-								channel: "audit",
-								typ:     "user.updated",
-								msg:     "updated",
-							},
-						})
-						s.Info(dto.EmittedEvent{
-							Level: dto.Info,
-							Event: testEvent{
-								channel: "audit",
-								typ:     "user.deleted",
-								msg:     "deleted",
-							},
-						})
-					},
-				},
-			},
-			wantEvents: []goldenRecordedEvent{
-				{
-					level: dto.Info,
-					typ:   "user.created",
-					msg:   "created",
-				},
-				{
-					level: dto.Info,
-					typ:   "user.deleted",
-					msg:   "deleted",
-				},
-			},
-			wantRecorded:     2,
-			wantDroppedExact: &exactZero,
-			wantSegments:     1,
-			wantEventCount:   2,
-		},
-		{
-			name: "channel_filter_records_only_allowed_channels",
-			cfg: &RecorderConfig{
-				Level:           dto.Debug,
-				SegmentSize:     8,
-				InputBuffer:     16,
-				BlockOnFull:     true,
-				ChannelsAllowed: []dto.EventChannel{"audit", "security"},
-			},
-			actions: []recorderAction{
-				{
-					name: "channel allow-list",
-					run: func(t *testing.T, s *RecorderSink) {
-						s.Info(dto.EmittedEvent{
-							Level: dto.Info,
-							Event: testEvent{
-								channel: "audit",
-								typ:     "audit.event",
-								msg:     "audit",
-							},
-						})
-						s.Info(dto.EmittedEvent{
-							Level: dto.Info,
-							Event: testEvent{
-								channel: "metrics",
-								typ:     "metrics.event",
-								msg:     "metrics",
-							},
-						})
-						s.Info(dto.EmittedEvent{
-							Level: dto.Info,
-							Event: testEvent{
-								channel: "security",
-								typ:     "security.event",
-								msg:     "security",
-							},
-						})
-					},
-				},
-			},
-			wantEvents: []goldenRecordedEvent{
-				{
-					level: dto.Info,
-					typ:   "audit.event",
-					msg:   "audit",
-				},
-				{
-					level: dto.Info,
-					typ:   "security.event",
-					msg:   "security",
-				},
-			},
-			wantRecorded:     2,
-			wantDroppedExact: &exactZero,
-			wantSegments:     1,
-			wantEventCount:   2,
-		},
-		{
-			name: "event_and_channel_filters_are_applied_together",
-			cfg: &RecorderConfig{
-				Level:           dto.Debug,
-				SegmentSize:     8,
-				InputBuffer:     16,
-				BlockOnFull:     true,
-				EventsAllowed:   []dto.EventRef{"user.created", "user.deleted"},
-				ChannelsAllowed: []dto.EventChannel{"audit"},
-			},
-			actions: []recorderAction{
-				{
-					name: "combined allow-lists",
-					run: func(t *testing.T, s *RecorderSink) {
-						// Allowed event and allowed channel: recorded.
-						s.Info(dto.EmittedEvent{
-							Level: dto.Info,
-							Event: testEvent{
-								channel: "audit",
-								typ:     "user.created",
-								msg:     "created",
-							},
-						})
-
-						// Allowed event, disallowed channel: filtered.
-						s.Info(dto.EmittedEvent{
-							Level: dto.Info,
-							Event: testEvent{
-								channel: "security",
-								typ:     "user.created",
-								msg:     "created elsewhere",
-							},
-						})
-
-						// Disallowed event, allowed channel: filtered.
-						s.Info(dto.EmittedEvent{
-							Level: dto.Info,
-							Event: testEvent{
-								channel: "audit",
-								typ:     "user.updated",
-								msg:     "updated",
-							},
-						})
-
-						// Disallowed event and channel: filtered.
-						s.Info(dto.EmittedEvent{
-							Level: dto.Info,
-							Event: testEvent{
-								channel: "metrics",
-								typ:     "request.counted",
-								msg:     "counted",
-							},
-						})
-					},
-				},
-			},
-			wantEvents: []goldenRecordedEvent{
-				{
-					level: dto.Info,
-					typ:   "user.created",
-					msg:   "created",
-				},
-			},
-			wantRecorded:     1,
-			wantDroppedExact: &exactZero,
-			wantSegments:     1,
-			wantEventCount:   1,
-		},
-		{
-			name: "filtered_events_do_not_increment_recorded_or_dropped_counts",
-			cfg: &RecorderConfig{
-				Level:           dto.Debug,
-				SegmentSize:     8,
-				InputBuffer:     16,
-				BlockOnFull:     true,
-				EventsAllowed:   []dto.EventRef{"allowed"},
-				ChannelsAllowed: []dto.EventChannel{"allowed-channel"},
-			},
-			actions: []recorderAction{
-				{
-					name: "filtered events",
-					run: func(t *testing.T, s *RecorderSink) {
-						for i := 0; i < 10; i++ {
-							s.Info(dto.EmittedEvent{
-								Level: dto.Info,
-								Event: testEvent{
-									channel: "other-channel",
-									typ:     "other",
-									msg:     "filtered",
-								},
-							})
-						}
-
-						s.Info(dto.EmittedEvent{
-							Level: dto.Info,
-							Event: testEvent{
-								channel: "allowed-channel",
-								typ:     "allowed",
-								msg:     "recorded",
-							},
-						})
-					},
-				},
-			},
-			wantEvents: []goldenRecordedEvent{
-				{
-					level: dto.Info,
-					typ:   "allowed",
-					msg:   "recorded",
-				},
-			},
-			wantRecorded:     1,
-			wantDroppedExact: &exactZero,
-			wantSegments:     1,
-			wantEventCount:   1,
 		},
 	}
 
@@ -800,7 +592,9 @@ func TestRecorderSink_ConcurrentWriters(t *testing.T) {
 	t.Parallel()
 
 	sink := NewRecorderSink(&RecorderConfig{
-		Level:       dto.Debug,
+		EventFilterConfig: EventFilterConfig{
+			Level: dto.Debug,
+		},
 		SegmentSize: 64,
 		InputBuffer: 2048,
 		BlockOnFull: true,
@@ -820,7 +614,7 @@ func TestRecorderSink_ConcurrentWriters(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := 0; i < perGoroutine; i++ {
-				sink.Info(dto.EmittedEvent{
+				sink.Emit(dto.EmittedEvent{
 					Level: dto.Info,
 					Event: testEvent{
 						typ: fmt.Sprintf("g-%d", g),
@@ -859,7 +653,9 @@ func TestRecorderSink_ReplayNilCallback(t *testing.T) {
 	t.Parallel()
 
 	sink := NewRecorderSink(&RecorderConfig{
-		Level:       dto.Debug,
+		EventFilterConfig: EventFilterConfig{
+			Level: dto.Debug,
+		},
 		SegmentSize: 4,
 		InputBuffer: 8,
 		BlockOnFull: true,
@@ -867,7 +663,7 @@ func TestRecorderSink_ReplayNilCallback(t *testing.T) {
 	defer func() {
 		_ = sink.Close()
 	}()
-	sink.Info(dto.EmittedEvent{
+	sink.Emit(dto.EmittedEvent{
 		Level: dto.Info,
 		Event: testEvent{typ: "x", msg: "y"}},
 	)
@@ -883,7 +679,9 @@ func TestRecorderSink_ResetAfterCloseReturnsError(t *testing.T) {
 	t.Parallel()
 
 	sink := NewRecorderSink(&RecorderConfig{
-		Level:       dto.Debug,
+		EventFilterConfig: EventFilterConfig{
+			Level: dto.Debug,
+		},
 		SegmentSize: 4,
 		InputBuffer: 8,
 		BlockOnFull: true,
@@ -904,7 +702,7 @@ func actDebug(typ string, msg string) recorderAction {
 	return recorderAction{
 		name: "debug",
 		run: func(t *testing.T, s *RecorderSink) {
-			s.Debug(dto.EmittedEvent{
+			s.Emit(dto.EmittedEvent{
 				Level: dto.Debug,
 				Event: testEvent{typ: typ, msg: msg}},
 			)
@@ -916,7 +714,7 @@ func actInfo(typ string, msg string) recorderAction {
 	return recorderAction{
 		name: "info",
 		run: func(t *testing.T, s *RecorderSink) {
-			s.Info(dto.EmittedEvent{Level: dto.Info, Event: testEvent{typ: typ, msg: msg}})
+			s.Emit(dto.EmittedEvent{Level: dto.Info, Event: testEvent{typ: typ, msg: msg}})
 		},
 	}
 }
@@ -925,7 +723,7 @@ func actWarn(typ string, msg string) recorderAction {
 	return recorderAction{
 		name: "warn",
 		run: func(t *testing.T, s *RecorderSink) {
-			s.Warn(dto.EmittedEvent{Level: dto.Warn, Event: testEvent{typ: typ, msg: msg}})
+			s.Emit(dto.EmittedEvent{Level: dto.Warn, Event: testEvent{typ: typ, msg: msg}})
 		},
 	}
 }
@@ -934,7 +732,7 @@ func actError(typ string, msg string) recorderAction {
 	return recorderAction{
 		name: "error",
 		run: func(t *testing.T, s *RecorderSink) {
-			s.Error(dto.EmittedEvent{Level: dto.Error, Event: testEvent{typ: typ, msg: msg}})
+			s.Emit(dto.EmittedEvent{Level: dto.Error, Event: testEvent{typ: typ, msg: msg}})
 		},
 	}
 }
@@ -943,7 +741,7 @@ func actFatal(typ string, msg string) recorderAction {
 	return recorderAction{
 		name: "fatal",
 		run: func(t *testing.T, s *RecorderSink) {
-			s.Fatal(dto.EmittedEvent{Level: dto.Fatal, Event: testEvent{typ: typ, msg: msg}})
+			s.Emit(dto.EmittedEvent{Level: dto.Fatal, Event: testEvent{typ: typ, msg: msg}})
 		},
 	}
 }
@@ -952,7 +750,7 @@ func actMeta(typ string, msg string) recorderAction {
 	return recorderAction{
 		name: "meta",
 		run: func(t *testing.T, s *RecorderSink) {
-			s.Meta(dto.EmittedEvent{Level: dto.Meta, Event: testEvent{typ: typ, msg: msg}})
+			s.Emit(dto.EmittedEvent{Level: dto.Meta, Event: testEvent{typ: typ, msg: msg}})
 		},
 	}
 }

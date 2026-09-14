@@ -1,6 +1,6 @@
 module github.com/joy-dx/relay
 
-go 1.25.5
+go 1.27.1
 
 require github.com/fatih/color v1.18.0
 

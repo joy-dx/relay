@@ -16,11 +16,10 @@ var ErrRecorderClosed = errors.New("recorder sink is closed")
 type RecorderSink struct {
 	cfg *RecorderConfig
 
-	input                chan dto.EmittedEvent
-	wg                   sync.WaitGroup
-	closed               atomic.Bool
-	relayChannelsAllowed map[dto.EventChannel]struct{}
-	relayEventsAllowed   map[dto.EventRef]struct{}
+	input       chan dto.EmittedEvent
+	wg          sync.WaitGroup
+	closed      atomic.Bool
+	eventFilter *EventFilter
 
 	mu       sync.RWMutex
 	segments [][]dto.EmittedEvent
@@ -33,15 +32,7 @@ func NewRecorderSink(cfg *RecorderConfig) *RecorderSink {
 	if cfg == nil {
 		cfg = &RecorderConfig{}
 	}
-
-	eventsFilterSet := make(map[dto.EventRef]struct{}, len(cfg.EventsAllowed))
-	for _, t := range cfg.EventsAllowed {
-		eventsFilterSet[t] = struct{}{}
-	}
-	channelsFilterSet := make(map[dto.EventChannel]struct{}, len(cfg.ChannelsAllowed))
-	for _, t := range cfg.ChannelsAllowed {
-		channelsFilterSet[t] = struct{}{}
-	}
+	filter := NewEventFilter(cfg.EventFilterConfig)
 
 	if cfg.SegmentSize <= 0 {
 		cfg.SegmentSize = RECORDER_DEFAULT_SEGMENT_SIZE
@@ -51,11 +42,10 @@ func NewRecorderSink(cfg *RecorderConfig) *RecorderSink {
 	}
 
 	s := &RecorderSink{
-		cfg:                  cfg,
-		input:                make(chan dto.EmittedEvent, cfg.InputBuffer),
-		relayChannelsAllowed: channelsFilterSet,
-		relayEventsAllowed:   eventsFilterSet,
-		segments:             make([][]dto.EmittedEvent, 0, 8),
+		cfg:         cfg,
+		input:       make(chan dto.EmittedEvent, cfg.InputBuffer),
+		eventFilter: filter,
+		segments:    make([][]dto.EmittedEvent, 0, 8),
 	}
 
 	s.wg.Add(1)
@@ -68,61 +58,24 @@ func (s *RecorderSink) Ref() string {
 	return RecorderSinkRef
 }
 
-func (s *RecorderSink) Debug(ev dto.EmittedEvent) {
-	if !levelEnabled(s.cfg.Level, dto.Debug) {
-		return
+func (s *RecorderSink) Emit(ev dto.EmittedEvent) {
+	switch ev.Level {
+	case dto.Debug, dto.Info, dto.Warn:
+		if !s.eventFilter.IsLevelEnabled(ev.Level) {
+			return
+		}
+		if !s.eventFilter.IsChannelAllowed(ev.Event.RelayChannel()) {
+			return
+		}
+		if !s.eventFilter.IsEventAllowed(ev.Event.RelayType()) {
+			return
+		}
 	}
-	s.record(dto.Debug, ev)
+	s.record(ev)
 }
 
-func (s *RecorderSink) Info(ev dto.EmittedEvent) {
-	if !levelEnabled(s.cfg.Level, dto.Info) {
-		return
-	}
-	s.record(dto.Info, ev)
-}
-
-func (s *RecorderSink) Warn(ev dto.EmittedEvent) {
-	if !levelEnabled(s.cfg.Level, dto.Warn) {
-		return
-	}
-	s.record(dto.Warn, ev)
-}
-
-func (s *RecorderSink) Error(ev dto.EmittedEvent) {
-	s.record(dto.Error, ev)
-}
-
-func (s *RecorderSink) Fatal(ev dto.EmittedEvent) {
-	s.record(dto.Fatal, ev)
-}
-
-func (s *RecorderSink) Meta(ev dto.EmittedEvent) {
-	s.record(dto.Meta, ev)
-}
-
-func (s *RecorderSink) record(level dto.RelayLevel, ev dto.EmittedEvent) {
+func (s *RecorderSink) record(ev dto.EmittedEvent) {
 	if s.closed.Load() {
-		return
-	}
-
-	if len(s.relayEventsAllowed) > 0 {
-		if _, allEventsAllowed := s.relayEventsAllowed["*"]; !allEventsAllowed {
-			if _, ok := s.relayEventsAllowed[ev.Event.RelayType()]; !ok {
-				return
-			}
-		}
-	}
-
-	if len(s.relayChannelsAllowed) > 0 {
-		if _, allChannelsAllowed := s.relayChannelsAllowed["*"]; !allChannelsAllowed {
-			if _, ok := s.relayChannelsAllowed[ev.Event.RelayChannel()]; !ok {
-				return
-			}
-		}
-	}
-
-	if s.cfg.Filter != nil && !s.cfg.Filter(ev) {
 		return
 	}
 

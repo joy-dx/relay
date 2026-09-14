@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -18,7 +19,41 @@ type RelaySvc struct {
 }
 
 func (r *RelaySvc) RegisterSink(sink dto.RelaySinkInterface) {
+	r.mu.Lock()
 	r.sinks = append(r.sinks, sink)
+	r.mu.Unlock()
+}
+
+func (r *RelaySvc) UnregisterSink(sinkRef string) error {
+	r.mu.Lock()
+
+	var sink dto.RelaySinkInterface
+	for i, candidate := range r.sinks {
+		if candidate.Ref() != sinkRef {
+			continue
+		}
+
+		sink = candidate
+
+		// Remove the sink while holding the lock.
+		copy(r.sinks[i:], r.sinks[i+1:])
+		r.sinks[len(r.sinks)-1] = nil // Release references, if Sink is an interface.
+		r.sinks = r.sinks[:len(r.sinks)-1]
+
+		break
+	}
+
+	r.mu.Unlock()
+
+	if sink == nil {
+		return nil
+	}
+
+	if err := sink.Close(); err != nil {
+		return fmt.Errorf("%s: unable to close sink: %w", sinkRef, err)
+	}
+
+	return nil
 }
 
 func (r *RelaySvc) Close() error {
@@ -31,7 +66,7 @@ func (r *RelaySvc) Close() error {
 	return closeErr
 }
 
-func (r *RelaySvc) emit(level dto.RelayLevel, event dto.RelayEventInterface) {
+func (r *RelaySvc) Emit(level dto.RelayLevel, event dto.RelayEventInterface) {
 
 	emittedEvent := dto.EmittedEvent{
 		Time:  time.Now(),
@@ -41,20 +76,7 @@ func (r *RelaySvc) emit(level dto.RelayLevel, event dto.RelayEventInterface) {
 
 	// dispatch to registered sinks
 	for _, sink := range r.sinks {
-		switch level {
-		case dto.Debug:
-			sink.Debug(emittedEvent)
-		case dto.Info:
-			sink.Info(emittedEvent)
-		case dto.Warn:
-			sink.Warn(emittedEvent)
-		case dto.Error:
-			sink.Error(emittedEvent)
-		case dto.Fatal:
-			sink.Fatal(emittedEvent)
-		case dto.Meta:
-			sink.Meta(emittedEvent)
-		}
+		sink.Emit(emittedEvent)
 	}
 	// After draining all the sinks, exit if fatal
 	if level == dto.Fatal {
@@ -62,11 +84,11 @@ func (r *RelaySvc) emit(level dto.RelayLevel, event dto.RelayEventInterface) {
 	}
 }
 
-func (r *RelaySvc) Debug(e dto.RelayEventInterface) { r.emit(dto.Debug, e) }
-func (r *RelaySvc) Info(e dto.RelayEventInterface)  { r.emit(dto.Info, e) }
-func (r *RelaySvc) Warn(e dto.RelayEventInterface)  { r.emit(dto.Warn, e) }
-func (r *RelaySvc) Error(e dto.RelayEventInterface) { r.emit(dto.Error, e) }
-func (r *RelaySvc) Fatal(e dto.RelayEventInterface) { r.emit(dto.Fatal, e) }
+func (r *RelaySvc) Debug(e dto.RelayEventInterface) { r.Emit(dto.Debug, e) }
+func (r *RelaySvc) Info(e dto.RelayEventInterface)  { r.Emit(dto.Info, e) }
+func (r *RelaySvc) Warn(e dto.RelayEventInterface)  { r.Emit(dto.Warn, e) }
+func (r *RelaySvc) Error(e dto.RelayEventInterface) { r.Emit(dto.Error, e) }
+func (r *RelaySvc) Fatal(e dto.RelayEventInterface) { r.Emit(dto.Fatal, e) }
 
 // Meta A special handler for
-func (r *RelaySvc) Meta(e dto.RelayEventInterface) { r.emit(dto.Meta, e) }
+func (r *RelaySvc) Meta(e dto.RelayEventInterface) { r.Emit(dto.Meta, e) }

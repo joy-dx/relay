@@ -2,24 +2,23 @@ package sinks
 
 import (
 	"io"
-
-	"github.com/joy-dx/relay/v2/dto"
 )
 
 type SimpleLoggerConfig struct {
-	KeyPadding int            `json:"key_padding" yaml:"key_padding" mapstructure:"key_padding"`
-	Level      dto.RelayLevel `json:"level" yaml:"level" mapstructure:"level"`
-	Writer     io.Writer      `json:"-" yaml:"-" mapstructure:"-"`
+	KeyPadding        int               `json:"key_padding" yaml:"key_padding" mapstructure:"key_padding"`
+	Writer            io.Writer         `json:"-" yaml:"-" mapstructure:"-"`
+	EventFilterConfig EventFilterConfig `json:"event_filter_config" yaml:"event_filter" mapstructure:"event_filter_config"`
 }
 
 func DefaultSimpleLoggerConfig() SimpleLoggerConfig {
 	return SimpleLoggerConfig{
-		Level: dto.Info,
+		KeyPadding:        8,
+		EventFilterConfig: DefaultEventFilterConfig(),
 	}
 }
 
-func (c *SimpleLoggerConfig) WithLevel(level dto.RelayLevel) *SimpleLoggerConfig {
-	c.Level = level
+func (c *SimpleLoggerConfig) WithEventFilterConfig(filter EventFilterConfig) *SimpleLoggerConfig {
+	c.EventFilterConfig = filter
 	return c
 }
 

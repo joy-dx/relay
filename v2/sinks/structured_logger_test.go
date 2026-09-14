@@ -21,7 +21,9 @@ type slogEvent struct {
 func (e slogEvent) RelayChannel() dto.EventChannel { return "relay" }
 func (e slogEvent) RelayType() dto.EventRef        { return "relay.log" }
 func (e slogEvent) Message() string                { return e.msg }
-func (e slogEvent) ToSlog() []slog.Attr            { return e.attrs }
+func (e slogEvent) ToSlog() []slog.Attr {
+	return append(e.attrs, slog.String("msg", e.msg))
+}
 
 // --- Golden-table tests -------------------------------------------------------
 
@@ -90,7 +92,7 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 			name:     "debug emits msg and attrs when enabled",
 			minLevel: slog.LevelDebug,
 			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Debug(ev)
+				l.Emit(ev)
 			},
 			event: dto.EmittedEvent{
 				Time:  fixedTime,
@@ -114,7 +116,7 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 			name:     "debug suppressed when min is info",
 			minLevel: slog.LevelInfo,
 			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Debug(ev)
+				l.Emit(ev)
 			},
 			event: dto.EmittedEvent{
 				Time:  fixedTime,
@@ -132,7 +134,7 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 			name:     "info emits msg and attrs at info",
 			minLevel: slog.LevelInfo,
 			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Info(ev)
+				l.Emit(ev)
 			},
 			event: dto.EmittedEvent{
 				Time:  fixedTime,
@@ -154,7 +156,7 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 			name:     "warn emits at warn",
 			minLevel: slog.LevelWarn,
 			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Warn(ev)
+				l.Emit(ev)
 			},
 			event: dto.EmittedEvent{
 				Time:  fixedTime,
@@ -176,7 +178,7 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 			name:     "error emits at error",
 			minLevel: slog.LevelError,
 			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Error(ev)
+				l.Emit(ev)
 			},
 			event: dto.EmittedEvent{
 				Time:  fixedTime,
@@ -195,35 +197,10 @@ func TestStructuredLogger_EmitsExpectedTextLog_Golden(t *testing.T) {
 			},
 		},
 		{
-			name:     "fatal uses ERROR level and message literal FATAL (not event message)",
-			minLevel: slog.LevelDebug,
-			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Fatal(ev)
-			},
-			event: dto.EmittedEvent{
-				Time:  fixedTime,
-				Level: dto.Fatal,
-				Event: slogEvent{
-					msg: "should-not-appear-as-msg",
-					attrs: []slog.Attr{
-						slog.String("reason", "boom"),
-					},
-				},
-			},
-			wantAny: []string{
-				"level=ERROR",
-				`msg=FATAL`,
-				`reason=boom`,
-			},
-			wantNone: []string{
-				`msg=should-not-appear-as-msg`,
-			},
-		},
-		{
 			name:     "meta does nothing (no output)",
 			minLevel: slog.LevelDebug,
 			call: func(l *StructuredLogger, ev dto.EmittedEvent) {
-				l.Meta(ev)
+				l.Emit(ev)
 			},
 			event: dto.EmittedEvent{
 				Time:  fixedTime,

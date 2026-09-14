@@ -13,23 +13,21 @@ type RelayEventInterface interface {
 
 type RelayInterface interface {
 	Close() error
-	Debug(data RelayEventInterface)
-	Info(data RelayEventInterface)
-	Warn(data RelayEventInterface)
-	Error(data RelayEventInterface)
-	Fatal(data RelayEventInterface)
-	Meta(data RelayEventInterface)
+	Emit(level RelayLevel, event RelayEventInterface)
+	Debug(event RelayEventInterface)
+	Info(event RelayEventInterface)
+	Warn(event RelayEventInterface)
+	Error(event RelayEventInterface)
+	Fatal(event RelayEventInterface)
+	Meta(event RelayEventInterface)
+	RegisterSink(sink RelaySinkInterface)
+	UnregisterSink(sinkRef string) error
 }
 
 type RelaySinkInterface interface {
 	Ref() string
 	Close() error
-	Debug(EmittedEvent)
-	Info(EmittedEvent)
-	Warn(EmittedEvent)
-	Error(EmittedEvent)
-	Fatal(EmittedEvent)
-	Meta(EmittedEvent)
+	Emit(EmittedEvent)
 }
 
 type CloneableRelayEvent interface {

@@ -46,26 +46,17 @@ func convertLevel(l dto.RelayLevel) slog.Level {
 	}
 }
 
-func (s *StructuredLogger) Debug(ev dto.EmittedEvent) {
-	s.logger.LogAttrs(context.Background(), slog.LevelDebug, ev.Event.Message(), ev.Event.ToSlog()...)
+func (s *StructuredLogger) Emit(ev dto.EmittedEvent) {
+	if ev.Level == dto.Meta {
+		return
+	}
+	s.logger.LogAttrs(
+		context.Background(),
+		convertLevel(ev.Level),
+		ev.Event.Message(),
+		ev.Event.ToSlog()...,
+	)
 }
-func (s *StructuredLogger) Info(ev dto.EmittedEvent) {
-	s.logger.LogAttrs(context.Background(), slog.LevelInfo, ev.Event.Message(), ev.Event.ToSlog()...)
-}
-func (s *StructuredLogger) Warn(ev dto.EmittedEvent) {
-	s.logger.LogAttrs(context.Background(), slog.LevelWarn, ev.Event.Message(), ev.Event.ToSlog()...)
-}
-func (s *StructuredLogger) Error(ev dto.EmittedEvent) {
-	s.logger.LogAttrs(context.Background(), slog.LevelError, ev.Event.Message(), ev.Event.ToSlog()...)
-}
-func (s *StructuredLogger) Fatal(ev dto.EmittedEvent) {
-	s.logger.LogAttrs(context.Background(), slog.LevelError, "FATAL", ev.Event.ToSlog()...)
-}
-
-func (s *StructuredLogger) Meta(ev dto.EmittedEvent) {
-
-}
-
 func (s *StructuredLogger) Close() error {
 	return nil
 }

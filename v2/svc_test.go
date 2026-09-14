@@ -33,7 +33,7 @@ func newRecordingSink(ref string) *recordingSink {
 
 func (s *recordingSink) Ref() string { return s.ref }
 
-func (s *recordingSink) record(level dto.RelayLevel, ev dto.EmittedEvent) {
+func (s *recordingSink) Emit(ev dto.EmittedEvent) {
 	e := ev.Event
 
 	s.mu.Lock()
@@ -41,20 +41,13 @@ func (s *recordingSink) record(level dto.RelayLevel, ev dto.EmittedEvent) {
 
 	s.calls = append(s.calls, sinkCall{
 		Ref:   s.ref,
-		Level: level,
+		Level: ev.Level,
 		Msg:   e.Message(),
 		Type:  e.RelayType(),
 		Ch:    e.RelayChannel(),
 		Time:  ev.Time,
 	})
 }
-
-func (s *recordingSink) Debug(ev dto.EmittedEvent) { s.record(dto.Debug, ev) }
-func (s *recordingSink) Info(ev dto.EmittedEvent)  { s.record(dto.Info, ev) }
-func (s *recordingSink) Warn(ev dto.EmittedEvent)  { s.record(dto.Warn, ev) }
-func (s *recordingSink) Error(ev dto.EmittedEvent) { s.record(dto.Error, ev) }
-func (s *recordingSink) Fatal(ev dto.EmittedEvent) { s.record(dto.Fatal, ev) }
-func (s *recordingSink) Meta(ev dto.EmittedEvent)  { s.record(dto.Meta, ev) }
 func (s *recordingSink) Close() error {
 	return nil
 }
@@ -210,7 +203,7 @@ func TestRelaySvc_Emit_DispatchesToAllSinks_Golden(t *testing.T) {
 				sinks: []dto.RelaySinkInterface{s1, s2},
 			}
 
-			svc.emit(tt.level, tt.event)
+			svc.Emit(tt.level, tt.event)
 
 			got := append(s1.Calls(), s2.Calls()...)
 			if len(got) != len(tt.want) {

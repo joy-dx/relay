@@ -52,7 +52,7 @@ func TestSimpleLoggerSink_LevelGating_Golden(t *testing.T) {
 		},
 		{
 			name:       "error always prints",
-			cfgLevel:   dto.Fatal,
+			cfgLevel:   dto.Error,
 			emitLevel:  dto.Error,
 			msg:        "e",
 			wantOutput: true,
@@ -75,41 +75,43 @@ func TestSimpleLoggerSink_LevelGating_Golden(t *testing.T) {
 
 			var buf bytes.Buffer
 
+			eventFilterCfg := DefaultEventFilterConfig()
+			eventFilterCfg.WithLevel(tt.cfgLevel)
 			cfg := DefaultSimpleLoggerConfig()
-			cfg.WithLevel(tt.cfgLevel).WithKeyPadding(0).WithWriter(&buf)
+			cfg.WithEventFilterConfig(eventFilterCfg).WithKeyPadding(0).WithWriter(&buf)
 
 			sink := NewSimpleLogger(&cfg)
 
 			switch tt.emitLevel {
 			case dto.Debug:
-				sink.Debug(dto.EmittedEvent{
+				sink.Emit(dto.EmittedEvent{
 					Time:  fixedTime,
 					Level: tt.emitLevel,
 					Event: msgEvent{msg: tt.msg},
 				})
 
 			case dto.Info:
-				sink.Info(dto.EmittedEvent{
+				sink.Emit(dto.EmittedEvent{
 					Time:  fixedTime,
 					Level: tt.emitLevel,
 					Event: msgEvent{msg: tt.msg},
 				})
 
 			case dto.Warn:
-				sink.Warn(dto.EmittedEvent{
+				sink.Emit(dto.EmittedEvent{
 					Time:  fixedTime,
 					Level: tt.emitLevel,
 					Event: msgEvent{msg: tt.msg},
 				})
 
 			case dto.Error:
-				sink.Error(dto.EmittedEvent{
+				sink.Emit(dto.EmittedEvent{
 					Time:  fixedTime,
 					Level: tt.emitLevel,
 					Event: msgEvent{msg: tt.msg},
 				})
 			case dto.Fatal:
-				sink.Fatal(dto.EmittedEvent{
+				sink.Emit(dto.EmittedEvent{
 					Time:  fixedTime,
 					Level: tt.emitLevel,
 					Event: msgEvent{msg: tt.msg},

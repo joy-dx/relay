@@ -12,10 +12,11 @@ import (
 const FileLoggerRef = "file"
 
 type FileLoggerSink struct {
-	padding int
-	file    *os.File
-	mu      sync.Mutex
-	cfg     *FileLoggerConfig
+	padding     int
+	file        *os.File
+	mu          sync.Mutex
+	cfg         *FileLoggerConfig
+	eventFilter *EventFilter
 }
 
 func NewFileLogger(cfg *FileLoggerConfig) (*FileLoggerSink, error) {
@@ -42,11 +43,13 @@ func NewFileLogger(cfg *FileLoggerConfig) (*FileLoggerSink, error) {
 	if err != nil {
 		return nil, err
 	}
+	filter := NewEventFilter(cfg.EventFilterConfig)
 
 	return &FileLoggerSink{
-		cfg:     cfg,
-		padding: cfg.KeyPadding,
-		file:    logFile,
+		cfg:         cfg,
+		padding:     cfg.KeyPadding,
+		file:        logFile,
+		eventFilter: filter,
 	}, nil
 }
 
@@ -60,45 +63,20 @@ func (s *FileLoggerSink) write(format string, args ...any) {
 	fmt.Fprintf(s.file, format, args...)
 }
 
-func (s *FileLoggerSink) Debug(ev dto.EmittedEvent) {
-	if !levelEnabled(s.cfg.Level, dto.Debug) {
+func (s *FileLoggerSink) Emit(ev dto.EmittedEvent) {
+	if !s.eventFilter.IsLevelEnabled(ev.Level) {
 		return
 	}
-	s.write("%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
-}
-
-func (s *FileLoggerSink) Info(ev dto.EmittedEvent) {
-	if !levelEnabled(s.cfg.Level, dto.Info) {
-		return
+	var prefix string
+	switch ev.Level {
+	case dto.Warn:
+		prefix = "WARN "
+	case dto.Error:
+		prefix = "ERROR "
+	case dto.Fatal:
+		prefix = "FATAL "
 	}
-
-	s.write("%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
-}
-
-func (s *FileLoggerSink) Warn(ev dto.EmittedEvent) {
-	if !levelEnabled(s.cfg.Level, dto.Warn) {
-		return
-	}
-
-	s.write("%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
-}
-
-func (s *FileLoggerSink) Error(ev dto.EmittedEvent) {
-	if !levelEnabled(s.cfg.Level, dto.Error) {
-		return
-	}
-	s.write("ERROR: %s\n", ev.Event.Message())
-}
-
-func (s *FileLoggerSink) Fatal(ev dto.EmittedEvent) {
-	if !levelEnabled(s.cfg.Level, dto.Fatal) {
-		return
-	}
-	s.write("FATAL: %s\n", ev.Event.Message())
-}
-
-func (s *FileLoggerSink) Meta(ev dto.EmittedEvent) {
-	s.write("META: %s\n", ev.Event.Message())
+	s.write("%s: %s\n", PadRight(prefix+string(ev.Event.RelayType()), s.padding), ev.Event.Message())
 }
 
 func (s *FileLoggerSink) Close() error {

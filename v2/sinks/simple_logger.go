@@ -13,9 +13,10 @@ import (
 const SimpleLoggerRef = "simple"
 
 type SimpleLoggerSink struct {
-	padding int
-	writer  io.Writer
-	cfg     *SimpleLoggerConfig
+	padding     int
+	writer      io.Writer
+	cfg         *SimpleLoggerConfig
+	eventFilter *EventFilter
 }
 
 func NewSimpleLogger(cfg *SimpleLoggerConfig) *SimpleLoggerSink {
@@ -23,10 +24,14 @@ func NewSimpleLogger(cfg *SimpleLoggerConfig) *SimpleLoggerSink {
 	if writer == nil {
 		writer = os.Stdout
 	}
+
+	filter := NewEventFilter(cfg.EventFilterConfig)
+
 	return &SimpleLoggerSink{
-		cfg:     cfg,
-		padding: cfg.KeyPadding,
-		writer:  writer,
+		cfg:         cfg,
+		padding:     cfg.KeyPadding,
+		writer:      writer,
+		eventFilter: filter,
 	}
 }
 
@@ -34,33 +39,40 @@ func (s *SimpleLoggerSink) Ref() string {
 	return SimpleLoggerRef
 }
 
-func (s *SimpleLoggerSink) Debug(ev dto.EmittedEvent) {
-	if !levelEnabled(s.cfg.Level, dto.Debug) {
+func (s *SimpleLoggerSink) Emit(ev dto.EmittedEvent) {
+
+	var prefix string
+	switch ev.Level {
+	case dto.Debug, dto.Info:
+		if !s.eventFilter.IsLevelEnabled(ev.Level) {
+			return
+		}
+		if !s.eventFilter.IsChannelAllowed(ev.Event.RelayChannel()) {
+			return
+		}
+		if !s.eventFilter.IsEventAllowed(ev.Event.RelayType()) {
+			return
+		}
+	case dto.Warn:
+		if !s.eventFilter.IsLevelEnabled(ev.Level) {
+			return
+		}
+		if !s.eventFilter.IsChannelAllowed(ev.Event.RelayChannel()) {
+			return
+		}
+		if !s.eventFilter.IsEventAllowed(ev.Event.RelayType()) {
+			return
+		}
+		prefix = "WARN "
+	case dto.Error:
+		prefix = "ERROR "
+	case dto.Fatal:
+		prefix = "FATAL "
+	case dto.Meta:
+		s.Meta(ev)
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
-}
-
-func (s *SimpleLoggerSink) Info(ev dto.EmittedEvent) {
-	if !levelEnabled(s.cfg.Level, dto.Info) {
-		return
-	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
-}
-
-func (s *SimpleLoggerSink) Warn(ev dto.EmittedEvent) {
-	if !levelEnabled(s.cfg.Level, dto.Warn) {
-		return
-	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.Event.RelayType()), s.padding), ev.Event.Message())
-}
-
-func (s *SimpleLoggerSink) Error(ev dto.EmittedEvent) {
-	fmt.Fprintln(s.writer, ev.Event.Message())
-}
-
-func (s *SimpleLoggerSink) Fatal(ev dto.EmittedEvent) {
-	fmt.Fprintln(s.writer, ev.Event.Message())
+	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(prefix+string(ev.Event.RelayType()), s.padding), ev.Event.Message())
 }
 
 func (s *SimpleLoggerSink) Meta(ev dto.EmittedEvent) {
