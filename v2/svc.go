@@ -72,6 +72,7 @@ func (r *RelaySvc) Emit(level dto.RelayLevel, event dto.RelayEventInterface) {
 		Time:  time.Now(),
 		Level: level,
 		Event: event,
+		Type:  event.RelayType(),
 	}
 
 	// dispatch to registered sinks
