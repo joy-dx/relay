@@ -34,33 +34,40 @@ func (s *SimpleLoggerSink) Ref() string {
 	return SimpleLoggerRef
 }
 
+func (s *SimpleLoggerSink) formatEvent(ev dto.RelayEventInterface) string {
+	if s.cfg.HideChannel {
+		return ev.Message()
+	}
+	return fmt.Sprintf("%s: %s\n", PadRight(string(ev.RelayType()), s.padding), ev.Message())
+}
+
 func (s *SimpleLoggerSink) Debug(ev dto.RelayEventInterface) {
 	if !levelEnabled(s.cfg.Level, dto.Debug) {
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.RelayType()), s.padding), ev.Message())
+	_, _ = io.WriteString(s.writer, s.formatEvent(ev))
 }
 
 func (s *SimpleLoggerSink) Info(ev dto.RelayEventInterface) {
 	if !levelEnabled(s.cfg.Level, dto.Info) {
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.RelayType()), s.padding), ev.Message())
+	_, _ = io.WriteString(s.writer, s.formatEvent(ev))
 }
 
 func (s *SimpleLoggerSink) Warn(ev dto.RelayEventInterface) {
 	if !levelEnabled(s.cfg.Level, dto.Warn) {
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(string(ev.RelayType()), s.padding), ev.Message())
+	_, _ = io.WriteString(s.writer, s.formatEvent(ev))
 }
 
 func (s *SimpleLoggerSink) Error(ev dto.RelayEventInterface) {
-	fmt.Fprintln(s.writer, ev.Message())
+	_, _ = io.WriteString(s.writer, s.formatEvent(ev))
 }
 
 func (s *SimpleLoggerSink) Fatal(ev dto.RelayEventInterface) {
-	fmt.Fprintln(s.writer, ev.Message())
+	_, _ = io.WriteString(s.writer, s.formatEvent(ev))
 }
 
 func (s *SimpleLoggerSink) Meta(ev dto.RelayEventInterface) {
