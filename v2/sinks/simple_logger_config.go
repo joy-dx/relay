@@ -5,6 +5,7 @@ import (
 )
 
 type SimpleLoggerConfig struct {
+	HideChannel       bool              `json:"hide_channel", yaml:"hide_channel" mapstructure:"hide_channel"`
 	KeyPadding        int               `json:"key_padding" yaml:"key_padding" mapstructure:"key_padding"`
 	Writer            io.Writer         `json:"-" yaml:"-" mapstructure:"-"`
 	EventFilterConfig EventFilterConfig `json:"event_filter_config" yaml:"event_filter" mapstructure:"event_filter_config"`
@@ -19,6 +20,11 @@ func DefaultSimpleLoggerConfig() SimpleLoggerConfig {
 
 func (c *SimpleLoggerConfig) WithEventFilterConfig(filter EventFilterConfig) *SimpleLoggerConfig {
 	c.EventFilterConfig = filter
+	return c
+}
+
+func (c *SimpleLoggerConfig) WithHideChannel(truthy bool) *SimpleLoggerConfig {
+	c.HideChannel = truthy
 	return c
 }
 

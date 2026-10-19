@@ -39,9 +39,26 @@ func (s *SimpleLoggerSink) Ref() string {
 	return SimpleLoggerRef
 }
 
-func (s *SimpleLoggerSink) Emit(ev dto.EmittedEvent) {
+func (s *SimpleLoggerSink) formatEvent(
+	ev dto.EmittedEvent,
+	prefix string,
+) string {
+	if s.cfg.HideChannel {
+		return prefix + ev.Event.Message()
+	}
 
+	eventName := prefix + string(ev.Event.RelayType())
+
+	return fmt.Sprintf(
+		"%s: %s\n",
+		PadRight(eventName, s.padding),
+		ev.Event.Message(),
+	)
+}
+
+func (s *SimpleLoggerSink) Emit(ev dto.EmittedEvent) {
 	var prefix string
+
 	switch ev.Level {
 	case dto.Debug, dto.Info:
 		if !s.eventFilter.IsLevelEnabled(ev.Level) {
@@ -53,6 +70,7 @@ func (s *SimpleLoggerSink) Emit(ev dto.EmittedEvent) {
 		if !s.eventFilter.IsEventAllowed(ev.Event.RelayType()) {
 			return
 		}
+
 	case dto.Warn:
 		if !s.eventFilter.IsLevelEnabled(ev.Level) {
 			return
@@ -64,15 +82,19 @@ func (s *SimpleLoggerSink) Emit(ev dto.EmittedEvent) {
 			return
 		}
 		prefix = "WARN "
+
 	case dto.Error:
 		prefix = "ERROR "
+
 	case dto.Fatal:
 		prefix = "FATAL "
+
 	case dto.Meta:
 		s.Meta(ev)
 		return
 	}
-	fmt.Fprintf(s.writer, "%s: %s\n", PadRight(prefix+string(ev.Event.RelayType()), s.padding), ev.Event.Message())
+
+	_, _ = io.WriteString(s.writer, s.formatEvent(ev, prefix))
 }
 
 func (s *SimpleLoggerSink) Meta(ev dto.EmittedEvent) {
