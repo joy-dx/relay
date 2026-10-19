@@ -44,7 +44,7 @@ func (s *SimpleLoggerSink) formatEvent(
 	prefix string,
 ) string {
 	if s.cfg.HideChannel {
-		return prefix + ev.Event.Message()
+		return prefix + ev.Event.Message() + "\n"
 	}
 
 	eventName := prefix + string(ev.Event.RelayType())
