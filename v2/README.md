@@ -504,6 +504,74 @@ r.Info(myevents.DBQuery{
 
 ---
 
+## Overriding event metadata
+
+Relay metadata can be overridden for an individual emission by passing `RlyOpts` to one of the `WithOpts` methods.
+
+```go
+type RlyOpts struct {
+	Channel dto.EventChannel
+	Type    dto.EventRef
+}
+```
+
+The available methods are:
+
+```go
+r.DebugWithOpts(event, opts)
+r.InfoWithOpts(event, opts)
+r.WarnWithOpts(event, opts)
+r.ErrorWithOpts(event, opts)
+r.FatalWithOpts(event, opts)
+r.MetaWithOpts(event, opts)
+```
+
+Example:
+
+```go
+r.InfoWithOpts(
+	RlyLog{
+		Msg: "hello world",
+	},
+	RlyOpts{
+		Channel: "my-custom-channel",
+		Type:    "my-custom-type",
+	},
+)
+```
+
+The emitted event uses the configured values for filtering and output:
+
+```go
+event.RelayChannel() // "my-custom-channel"
+event.RelayType()    // "my-custom-type"
+event.Message()      // "hello world"
+```
+
+Either field can be overridden independently. An empty option preserves the value returned by the original event:
+
+```go
+r.InfoWithOpts(
+	RlyLog{
+		Msg: "hello world",
+	},
+	RlyOpts{
+		Channel: "my-custom-channel",
+	},
+)
+```
+
+In this example, the emitted event has:
+
+```go
+event.RelayChannel() // "my-custom-channel"
+event.RelayType()    // "relay.log"
+```
+
+The original event is not modified. The override applies only to the current emission, and the wrapped event continues to provide its original `Message()` and `ToSlog()` behavior.
+
+---
+
 ## Creating a custom sink
 
 Implement `dto.RelaySinkInterface`. You can route based on:

@@ -93,3 +93,53 @@ func (r *RelaySvc) Fatal(e dto.RelayEventInterface) { r.Emit(dto.Fatal, e) }
 
 // Meta A special handler for
 func (r *RelaySvc) Meta(e dto.RelayEventInterface) { r.Emit(dto.Meta, e) }
+
+func (r *RelaySvc) EmitWithOpts(
+	level dto.RelayLevel,
+	event dto.RelayEventInterface,
+	opts dto.RlyOpts,
+) {
+	r.Emit(level, dto.ApplyRelayOpts(event, opts))
+}
+
+func (r *RelaySvc) DebugWithOpts(
+	event dto.RelayEventInterface,
+	opts dto.RlyOpts,
+) {
+	r.EmitWithOpts(dto.Debug, event, opts)
+}
+
+func (r *RelaySvc) InfoWithOpts(
+	event dto.RelayEventInterface,
+	opts dto.RlyOpts,
+) {
+	r.EmitWithOpts(dto.Info, event, opts)
+}
+
+func (r *RelaySvc) WarnWithOpts(
+	event dto.RelayEventInterface,
+	opts dto.RlyOpts,
+) {
+	r.EmitWithOpts(dto.Warn, event, opts)
+}
+
+func (r *RelaySvc) ErrorWithOpts(
+	event dto.RelayEventInterface,
+	opts dto.RlyOpts,
+) {
+	r.EmitWithOpts(dto.Error, event, opts)
+}
+
+func (r *RelaySvc) FatalWithOpts(
+	event dto.RelayEventInterface,
+	opts dto.RlyOpts,
+) {
+	r.EmitWithOpts(dto.Fatal, event, opts)
+}
+
+func (r *RelaySvc) MetaWithOpts(
+	event dto.RelayEventInterface,
+	opts dto.RlyOpts,
+) {
+	r.EmitWithOpts(dto.Meta, event, opts)
+}

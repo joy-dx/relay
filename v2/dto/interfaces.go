@@ -13,13 +13,27 @@ type RelayEventInterface interface {
 
 type RelayInterface interface {
 	Close() error
+
 	Emit(level RelayLevel, event RelayEventInterface)
+
 	Debug(event RelayEventInterface)
+	DebugWithOpts(event RelayEventInterface, opts RlyOpts)
+
 	Info(event RelayEventInterface)
+	InfoWithOpts(event RelayEventInterface, opts RlyOpts)
+
 	Warn(event RelayEventInterface)
+	WarnWithOpts(event RelayEventInterface, opts RlyOpts)
+
 	Error(event RelayEventInterface)
+	ErrorWithOpts(event RelayEventInterface, opts RlyOpts)
+
 	Fatal(event RelayEventInterface)
+	FatalWithOpts(event RelayEventInterface, opts RlyOpts)
+
 	Meta(event RelayEventInterface)
+	MetaWithOpts(event RelayEventInterface, opts RlyOpts)
+
 	RegisterSink(sink RelaySinkInterface)
 	UnregisterSink(sinkRef string) error
 }
