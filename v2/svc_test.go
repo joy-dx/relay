@@ -330,3 +330,296 @@ func TestDefaultSimpleLoggerConfigAndFluentBuilders_Golden(t *testing.T) {
 	// you should move these tests into sinks/ for clarity.
 	_ = cfgIface(nil)
 }
+
+func TestRelaySvc_WithOpts_OverridesRelayMetadata_Golden(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		opts        dto.RlyOpts
+		wantChannel dto.EventChannel
+		wantType    dto.EventRef
+	}{
+		{
+			name:        "overrides channel and type",
+			opts:        dto.RlyOpts{Channel: "custom-channel", Type: "custom.type"},
+			wantChannel: "custom-channel",
+			wantType:    "custom.type",
+		},
+		{
+			name:        "overrides channel only",
+			opts:        dto.RlyOpts{Channel: "custom-channel"},
+			wantChannel: "custom-channel",
+			wantType:    "relay.log",
+		},
+		{
+			name:        "overrides type only",
+			opts:        dto.RlyOpts{Type: "custom.type"},
+			wantChannel: "relay",
+			wantType:    "custom.type",
+		},
+		{
+			name:        "empty options preserve original metadata",
+			opts:        dto.RlyOpts{},
+			wantChannel: "relay",
+			wantType:    "relay.log",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			sink := newRecordingSink("sink")
+			svc := &RelaySvc{
+				cfg:   &config.RelaySvcConfig{},
+				sinks: []dto.RelaySinkInterface{sink},
+			}
+
+			event := testEvent{
+				ch:  "relay",
+				ref: "relay.log",
+				msg: "hello",
+			}
+
+			svc.InfoWithOpts(event, tt.opts)
+
+			calls := sink.Calls()
+			if len(calls) != 1 {
+				t.Fatalf("expected one sink call, got %d", len(calls))
+			}
+
+			got := calls[0]
+
+			if got.Level != dto.Info {
+				t.Fatalf("level mismatch\nwant: %q\ngot:  %q",
+					dto.Info, got.Level)
+			}
+
+			if got.Msg != "hello" {
+				t.Fatalf("message mismatch\nwant: %q\ngot:  %q",
+					"hello", got.Msg)
+			}
+
+			if got.Ch != tt.wantChannel {
+				t.Fatalf("channel mismatch\nwant: %q\ngot:  %q",
+					tt.wantChannel, got.Ch)
+			}
+
+			if got.Type != tt.wantType {
+				t.Fatalf("type mismatch\nwant: %q\ngot:  %q",
+					tt.wantType, got.Type)
+			}
+
+			if got.Time.IsZero() {
+				t.Fatal("expected emitted event time to be populated")
+			}
+		})
+	}
+}
+
+func TestRelaySvc_WithOpts_DispatchesToAllSinks_Golden(t *testing.T) {
+	t.Parallel()
+
+	s1 := newRecordingSink("s1")
+	s2 := newRecordingSink("s2")
+
+	svc := &RelaySvc{
+		cfg:   &config.RelaySvcConfig{},
+		sinks: []dto.RelaySinkInterface{s1, s2},
+	}
+
+	event := testEvent{
+		ch:  "relay",
+		ref: "relay.log",
+		msg: "hello with options",
+	}
+
+	svc.InfoWithOpts(event, dto.RlyOpts{
+		Channel: "custom-channel",
+		Type:    "custom.type",
+	})
+
+	got := append(s1.Calls(), s2.Calls()...)
+
+	if len(got) != 2 {
+		t.Fatalf("expected two sink calls, got %d", len(got))
+	}
+
+	wantRefs := []string{"s1", "s2"}
+
+	for i, call := range got {
+		if call.Ref != wantRefs[i] {
+			t.Fatalf("call[%d] sink mismatch\nwant: %q\ngot:  %q",
+				i, wantRefs[i], call.Ref)
+		}
+
+		if call.Level != dto.Info {
+			t.Fatalf("call[%d] level mismatch\nwant: %q\ngot:  %q",
+				i, dto.Info, call.Level)
+		}
+
+		if call.Msg != "hello with options" {
+			t.Fatalf("call[%d] message mismatch\nwant: %q\ngot:  %q",
+				i, "hello with options", call.Msg)
+		}
+
+		if call.Ch != dto.EventChannel("custom-channel") {
+			t.Fatalf("call[%d] channel mismatch\nwant: %q\ngot:  %q",
+				i, "custom-channel", call.Ch)
+		}
+
+		if call.Type != dto.EventRef("custom.type") {
+			t.Fatalf("call[%d] type mismatch\nwant: %q\ngot:  %q",
+				i, "custom.type", call.Type)
+		}
+
+		if call.Time.IsZero() {
+			t.Fatalf("call[%d] has zero time", i)
+		}
+	}
+}
+
+func TestRelaySvc_WithOpts_DoesNotMutateOriginalEvent_Golden(t *testing.T) {
+	t.Parallel()
+
+	sink := newRecordingSink("sink")
+	svc := &RelaySvc{
+		cfg:   &config.RelaySvcConfig{},
+		sinks: []dto.RelaySinkInterface{sink},
+	}
+
+	event := testEvent{
+		ch:  "relay",
+		ref: "relay.log",
+		msg: "original message",
+	}
+
+	svc.WarnWithOpts(event, dto.RlyOpts{
+		Channel: "custom-channel",
+		Type:    "custom.type",
+	})
+
+	if event.RelayChannel() != dto.EventChannel("relay") {
+		t.Fatalf("original event channel was modified: %q",
+			event.RelayChannel())
+	}
+
+	if event.RelayType() != dto.EventRef("relay.log") {
+		t.Fatalf("original event type was modified: %q",
+			event.RelayType())
+	}
+
+	if event.Message() != "original message" {
+		t.Fatalf("original event message was modified: %q",
+			event.Message())
+	}
+
+	calls := sink.Calls()
+	if len(calls) != 1 {
+		t.Fatalf("expected one sink call, got %d", len(calls))
+	}
+
+	if calls[0].Ch != dto.EventChannel("custom-channel") {
+		t.Fatalf("emitted channel mismatch\nwant: %q\ngot:  %q",
+			"custom-channel", calls[0].Ch)
+	}
+
+	if calls[0].Type != dto.EventRef("custom.type") {
+		t.Fatalf("emitted type mismatch\nwant: %q\ngot:  %q",
+			"custom.type", calls[0].Type)
+	}
+}
+
+func TestRelaySvc_WithOpts_PreservesEventBehavior_Golden(t *testing.T) {
+	t.Parallel()
+
+	sink := newRecordingSink("sink")
+	svc := &RelaySvc{
+		cfg:   &config.RelaySvcConfig{},
+		sinks: []dto.RelaySinkInterface{sink},
+	}
+
+	event := testEvent{
+		ch:  "relay",
+		ref: "relay.log",
+		msg: "message is preserved",
+	}
+
+	svc.DebugWithOpts(event, dto.RlyOpts{
+		Channel: "debug-channel",
+		Type:    "debug.type",
+	})
+
+	calls := sink.Calls()
+	if len(calls) != 1 {
+		t.Fatalf("expected one sink call, got %d", len(calls))
+	}
+
+	got := calls[0]
+
+	if got.Msg != event.Message() {
+		t.Fatalf("message mismatch\nwant: %q\ngot:  %q",
+			event.Message(), got.Msg)
+	}
+
+	if got.Ch != dto.EventChannel("debug-channel") {
+		t.Fatalf("channel mismatch\nwant: %q\ngot:  %q",
+			"debug-channel", got.Ch)
+	}
+
+	if got.Type != dto.EventRef("debug.type") {
+		t.Fatalf("type mismatch\nwant: %q\ngot:  %q",
+			"debug.type", got.Type)
+	}
+}
+
+func TestRelaySvc_WithOpts_MetaDispatchesWithOverrides_Golden(t *testing.T) {
+	t.Parallel()
+
+	sink := newRecordingSink("sink")
+	svc := &RelaySvc{
+		cfg:   &config.RelaySvcConfig{},
+		sinks: []dto.RelaySinkInterface{sink},
+	}
+
+	event := testEvent{
+		ch:  "relay",
+		ref: "relay.log",
+		msg: "metadata event",
+	}
+
+	svc.MetaWithOpts(event, dto.RlyOpts{
+		Channel: "meta-channel",
+		Type:    "meta.type",
+	})
+
+	calls := sink.Calls()
+	if len(calls) != 1 {
+		t.Fatalf("expected one sink call, got %d", len(calls))
+	}
+
+	got := calls[0]
+
+	if got.Level != dto.Meta {
+		t.Fatalf("level mismatch\nwant: %q\ngot:  %q",
+			dto.Meta, got.Level)
+	}
+
+	if got.Ch != dto.EventChannel("meta-channel") {
+		t.Fatalf("channel mismatch\nwant: %q\ngot:  %q",
+			"meta-channel", got.Ch)
+	}
+
+	if got.Type != dto.EventRef("meta.type") {
+		t.Fatalf("type mismatch\nwant: %q\ngot:  %q",
+			"meta.type", got.Type)
+	}
+
+	if got.Msg != "metadata event" {
+		t.Fatalf("message mismatch\nwant: %q\ngot:  %q",
+			"metadata event", got.Msg)
+	}
+}
