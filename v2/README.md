@@ -50,39 +50,119 @@ Before dispatching to sinks, RelaySvc wraps the event in an envelope:
 
 ```go
 type EmittedEvent struct {
-Time  time.Time
-Level RelayLevel
-Event RelayEventInterface
+    Revision uint64
+    Time     time.Time
+    Channel  dto.EventChannel
+    Type     dto.EventRef
+    Level    dto.RelayLevel
+    Event    dto.RelayEventInterface
 }
 ```
 
-This keeps domain event types small and focused, while allowing sinks to access:
+Every emitted event receives:
 
-* the original typed event via `Event`
-* the relay-assigned timestamp via `Time`
-* the emitted level via `Level`
-* 
-This also guarantees that all sinks see the same event timestamp for a single
+- a monotonically increasing `Revision`
+- a relay-assigned `Time`
+- the effective `Channel` and `Type`
+- the emitted `Level`
+- the original typed event in `Event`
+
+The revision is represented internally as `uint64` and exposed by
+`CurrentRevision()` as a decimal string to avoid JavaScript integer precision
+loss.ees that all sinks see the same event timestamp for a single
 emission.
 
 ### Sinks
+
 A sink is any implementation of:
 
 ```go
 type RelaySinkInterface interface {
 	Ref() string
 	Close() error
-	Debug(data RelayEventInterface)
-	Info(data RelayEventInterface)
-	Warn(data RelayEventInterface)
-	Error(data RelayEventInterface)
-	Fatal(data RelayEventInterface)
-	Meta(data RelayEventInterface)
+	Emit(dto.EmittedEvent)
 }
 ```
 
-Sinks decide how and where the event is output (stdout, structured slog, filtered stdout, etc).
+The relay creates one `EmittedEvent` envelope and sends it to each sink.
+Sinks can route or format the event using:
 
+- `event.Level`
+- `event.Revision`
+- `event.Time`
+- `event.Channel`
+- `event.Type`
+- `event.Event`
+
+The original typed event remains available through `event.Event`.
+
+### Sink lifecycle, immutability, and concurrency
+
+Sinks should normally be registered during application setup and remain
+registered for the lifetime of the relay.
+
+The relay copies the registered sink slice before dispatching an event. The
+copy is made while holding the relay mutex, but sink callbacks are invoked after
+the mutex is released. This keeps slow or blocking sink implementations from
+blocking relay state operations.
+
+Registering or unregistering a sink while events are being emitted is not a
+transactional operation. An emission may already have captured a sink snapshot
+when that sink is unregistered, so that event may still be delivered to it.
+
+Applications should therefore not register or unregister sinks after normal
+operation begins unless they can guarantee that registration changes cannot
+overlap with emission. Applications that need dynamic sink replacement should
+stop or quiesce event producers before changing the sink set.
+
+This design is intentional. The short-lived snapshot copy provides predictable
+fan-out performance without holding a mutex while executing application-owned
+sink code. The relay is optimized for fast in-process broadcasting, not for
+transactional subscription changes or dynamic-subscription resilience.
+
+Events are treated as immutable after emission. The same event value may be
+observed by multiple sinks and may be retained for replay. Callers must not
+mutate an event, or data referenced by the event, while it is being emitted or
+retained. Events that need independent ownership should implement:
+
+```go
+type CloneableRelayEvent interface {
+	Clone() dto.RelayEventInterface
+}
+```
+
+Replay clones cloneable events before returning them to the caller. Normal
+fan-out does not clone every event because doing so would add allocation and
+CPU overhead to every emission.
+
+### Revisions, history, and replay
+
+Each emitted event receives a monotonically increasing `Revision` and a relay
+assigned `Time`. The revision is represented as a `uint64` internally and is
+returned as a decimal string by `CurrentRevision()` to avoid JavaScript integer
+precision loss.
+
+History is optional and configured with a bounded in-memory ring buffer. When
+the buffer is full, older events are evicted.
+
+```go
+revision := relay.CurrentRevision()
+
+result, err := relay.ReplayAfter(revision)
+if err != nil {
+    // History may be disabled, or the revision may be invalid.
+    return err
+}
+
+if result.Gap {
+    // The requested range is older than the retained history.
+    // A fresh snapshot or another recovery mechanism is required.
+}
+
+for _, event := range result.Events {
+    fmt.Println(event.Revision, event.Event.Message())
+}
+```
 ### Fatal behavior
 
 `RelaySvc.Fatal(...)`:
@@ -592,43 +672,31 @@ import (
 )
 
 type CountingSink struct {
-	mu     sync.Mutex
-	counts map[dto.EventRef]int
+  mu     sync.Mutex
+  counts map[dto.EventRef]int
 }
 
 func NewCountingSink() *CountingSink {
-	return &CountingSink{counts: map[dto.EventRef]int{}}
+  return &CountingSink{
+    counts: make(map[dto.EventRef]int),
+  }
 }
 
-func (s *CountingSink) Ref() string { return "counting" }
-
-func (s *CountingSink) Close() error { 
-	return nil
+func (s *CountingSink) Ref() string {
+  return "counting"
 }
 
-func (s *CountingSink) add(e dto.RelayEventInterface) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.counts[e.RelayType()]++
+func (s *CountingSink) Close() error {
+  return nil
 }
 
-func (s *CountingSink) Debug(e dto.EmittedEvent) { s.add(e) }
-func (s *CountingSink) Info(e dto.EmittedEvent)  { s.add(e) }
-func (s *CountingSink) Warn(e dto.EmittedEvent)  { s.add(e) }
-func (s *CountingSink) Error(e dto.EmittedEvent) { s.add(e) }
-func (s *CountingSink) Fatal(e dto.EmittedEvent) { s.add(e) }
-func (s *CountingSink) Meta(e dto.EmittedEvent)  { s.add(e) }
+func (s *CountingSink) Emit(event dto.EmittedEvent) {
+  s.mu.Lock()
+  defer s.mu.Unlock()
 
-// Optional: expose counts
-func (s *CountingSink) Snapshot() map[dto.EventRef]int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make(map[dto.EventRef]int, len(s.counts))
-	for k, v := range s.counts {
-		out[k] = v
-	}
-	return out
+  s.counts[event.Type]++
 }
+
 ```
 
 Register it:

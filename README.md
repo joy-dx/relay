@@ -1,5 +1,7 @@
 # relay
 
+[Go to the V2 documentation](./v2/)
+
 `relay` is a small Go logging facade designed for “broadcast-style” logging with rich, typed event data.
 
 Instead of logging plain strings directly to one logger, you emit **structured events** to a central `RelaySvc`. The relay then **fans out** those events to any number of subscribed **sinks** (stdout loggers, structured loggers, filtered loggers, file loggers, etc).

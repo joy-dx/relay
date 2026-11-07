@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"errors"
 	"log/slog"
 	"sync"
 	"testing"
@@ -275,6 +276,79 @@ func TestRelaySvc_RegisterSink_AppendsInOrder_Golden(t *testing.T) {
 	}
 }
 
+func TestRelaySvc_UnregisterSink_RemovesByRef(t *testing.T) {
+	t.Parallel()
+
+	first := newRecordingSink("first")
+	second := newRecordingSink("second")
+
+	svc := &RelaySvc{
+		sinks: []dto.RelaySinkInterface{first, second},
+	}
+
+	if err := svc.UnregisterSink("first"); err != nil {
+		t.Fatalf("UnregisterSink returned error: %v", err)
+	}
+
+	snapshot := svc.sinkSnapshot()
+	if len(snapshot) != 1 {
+		t.Fatalf("sink count mismatch: got %d, want 1", len(snapshot))
+	}
+
+	if got := snapshot[0].Ref(); got != "second" {
+		t.Fatalf("remaining sink mismatch: got %q, want %q", got, "second")
+	}
+}
+
+func TestRelaySvc_UnregisterSink_UnknownRefReturnsError(t *testing.T) {
+	t.Parallel()
+
+	svc := &RelaySvc{
+		sinks: []dto.RelaySinkInterface{
+			newRecordingSink("registered"),
+		},
+	}
+
+	err := svc.UnregisterSink("missing")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestRelaySvc_RegisterSink_PreservesRegistrationOrder(t *testing.T) {
+	t.Parallel()
+
+	svc := &RelaySvc{}
+
+	svc.RegisterSink(newRecordingSink("one"))
+	svc.RegisterSink(newRecordingSink("two"))
+	svc.RegisterSink(newRecordingSink("three"))
+
+	snapshot := svc.sinkSnapshot()
+	if len(snapshot) != 3 {
+		t.Fatalf("sink count mismatch: got %d, want 3", len(snapshot))
+	}
+
+	want := []string{"one", "two", "three"}
+	for i, sink := range snapshot {
+		if got := sink.Ref(); got != want[i] {
+			t.Fatalf("sink[%d] ref mismatch: got %q, want %q",
+				i, got, want[i])
+		}
+	}
+}
+
+func TestRelaySvc_RegisterSink_IgnoresNil(t *testing.T) {
+	t.Parallel()
+
+	svc := &RelaySvc{}
+	svc.RegisterSink(nil)
+
+	if got := len(svc.sinkSnapshot()); got != 0 {
+		t.Fatalf("sink count mismatch: got %d, want 0", got)
+	}
+}
+
 // We intentionally do NOT call Fatal through emit() in tests here because it
 // os.Exit(1)'s the test process. If you want Fatal tested, refactor RelaySvc to
 // allow an injected "exit func(int)" or "osExiter interface" so tests can
@@ -291,8 +365,8 @@ func TestProvideRelaySvc_IsSingleton_Golden(t *testing.T) {
 	cfg1 := &config.RelaySvcConfig{}
 	cfg2 := &config.RelaySvcConfig{}
 
-	s1 := ProvideRelaySvc(cfg1)
-	s2 := ProvideRelaySvc(cfg2)
+	s1, _ := ProvideRelaySvc(cfg1)
+	s2, _ := ProvideRelaySvc(cfg2)
 
 	if s1 == nil || s2 == nil {
 		t.Fatalf("expected non-nil services")
@@ -621,5 +695,183 @@ func TestRelaySvc_WithOpts_MetaDispatchesWithOverrides_Golden(t *testing.T) {
 	if got.Msg != "metadata event" {
 		t.Fatalf("message mismatch\nwant: %q\ngot:  %q",
 			"metadata event", got.Msg)
+	}
+}
+
+func TestRelaySvc_SinkSnapshot_CopiesSlice(t *testing.T) {
+	t.Parallel()
+
+	first := newRecordingSink("first")
+	second := newRecordingSink("second")
+
+	svc := &RelaySvc{
+		sinks: []dto.RelaySinkInterface{first, second},
+	}
+
+	snapshot := svc.sinkSnapshot()
+
+	if len(snapshot) != 2 {
+		t.Fatalf("snapshot length mismatch: got %d, want 2", len(snapshot))
+	}
+
+	svc.mu.Lock()
+	svc.sinks[0] = second
+	svc.sinks = svc.sinks[1:]
+	svc.mu.Unlock()
+
+	if got := snapshot[0].Ref(); got != "first" {
+		t.Fatalf("snapshot was not independent of source slice: got %q", got)
+	}
+
+	if got := snapshot[1].Ref(); got != "second" {
+		t.Fatalf("snapshot changed unexpectedly: got %q", got)
+	}
+}
+
+func TestRelaySvc_RevisionsAndReplay_Golden(t *testing.T) {
+	t.Parallel()
+
+	sink := newRecordingSink("sink")
+	svc := &RelaySvc{
+		sinks:   []dto.RelaySinkInterface{sink},
+		history: make([]dto.EmittedEvent, 2),
+	}
+
+	svc.Info(testEvent{
+		ch:  "test",
+		ref: "test.one",
+		msg: "one",
+	})
+	svc.Warn(testEvent{
+		ch:  "test",
+		ref: "test.two",
+		msg: "two",
+	})
+	svc.Error(testEvent{
+		ch:  "test",
+		ref: "test.three",
+		msg: "three",
+	})
+
+	if got := svc.CurrentRevision(); got != "3" {
+		t.Fatalf("revision mismatch: got %q, want %q", got, "3")
+	}
+
+	result, err := svc.ReplayAfter("0")
+	if err != nil {
+		t.Fatalf("ReplayAfter returned error: %v", err)
+	}
+
+	if result.Through != 3 {
+		t.Fatalf("through mismatch: got %d, want 3", result.Through)
+	}
+
+	if !result.Gap {
+		t.Fatal("expected replay gap after oldest event was evicted")
+	}
+
+	result, err = svc.ReplayAfter("2")
+	if err != nil {
+		t.Fatalf("ReplayAfter returned error: %v", err)
+	}
+
+	if result.Gap {
+		t.Fatal("did not expect a gap after revision 2")
+	}
+
+	if len(result.Events) != 1 {
+		t.Fatalf("event count mismatch: got %d, want 1", len(result.Events))
+	}
+
+	if got := result.Events[0].Event.Message(); got != "three" {
+		t.Fatalf("message mismatch: got %q, want %q", got, "three")
+	}
+}
+
+func TestRelaySvc_ReplayAfter_DisabledHistory(t *testing.T) {
+	t.Parallel()
+
+	svc := &RelaySvc{}
+
+	if svc.HistoryEnabled() {
+		t.Fatal("history should be disabled")
+	}
+
+	_, err := svc.ReplayAfter("0")
+	if !errors.Is(err, dto.ErrReplayDisabled) {
+		t.Fatalf("error mismatch: got %v, want %v", err, dto.ErrReplayDisabled)
+	}
+}
+
+func TestRelaySvc_ReplayAfter_InvalidRevision(t *testing.T) {
+	t.Parallel()
+
+	svc := &RelaySvc{
+		history: make([]dto.EmittedEvent, 4),
+	}
+
+	_, err := svc.ReplayAfter("not-a-number")
+	if err == nil {
+		t.Fatal("expected invalid revision error, got nil")
+	}
+}
+
+func TestRelaySvc_ReplayAfter_CurrentRevisionReturnsEmptyResult(t *testing.T) {
+	t.Parallel()
+
+	svc := &RelaySvc{
+		history: make([]dto.EmittedEvent, 4),
+	}
+
+	svc.Info(testEvent{
+		ch:  "test",
+		ref: "test.event",
+		msg: "hello",
+	})
+
+	result, err := svc.ReplayAfter("1")
+	if err != nil {
+		t.Fatalf("ReplayAfter returned error: %v", err)
+	}
+
+	if result.Gap {
+		t.Fatal("did not expect a gap at the current revision")
+	}
+
+	if len(result.Events) != 0 {
+		t.Fatalf("event count mismatch: got %d, want 0",
+			len(result.Events))
+	}
+
+	if result.Through != 1 {
+		t.Fatalf("through mismatch: got %d, want 1", result.Through)
+	}
+}
+
+func TestRelaySvc_ReplayAfter_FutureRevisionReturnsGap(t *testing.T) {
+	t.Parallel()
+
+	svc := &RelaySvc{
+		history: make([]dto.EmittedEvent, 4),
+	}
+
+	svc.Info(testEvent{
+		ch:  "test",
+		ref: "test.event",
+		msg: "hello",
+	})
+
+	result, err := svc.ReplayAfter("2")
+	if err != nil {
+		t.Fatalf("ReplayAfter returned error: %v", err)
+	}
+
+	if !result.Gap {
+		t.Fatal("expected a gap for a future revision")
+	}
+
+	if len(result.Events) != 0 {
+		t.Fatalf("event count mismatch: got %d, want 0",
+			len(result.Events))
 	}
 }
